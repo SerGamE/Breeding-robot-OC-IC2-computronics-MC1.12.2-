@@ -2,8 +2,8 @@ local scanner = require("scanner")
 local logic = {}
 
 function logic.checkPhase(state, CONFIG)
-    -- EMERGENCY — флаг. Пока флаг поднят, checkPhase не трогает фазу.
-    if state.emergency then return nil end
+    -- EMERGENCY — липкая фаза. Пока не придёт READY, checkPhase её не трогает.
+    if state.phase == "EMERGENCY" then return nil end
 
     local total_plants = 0
     local parents = 0
@@ -16,7 +16,7 @@ function logic.checkPhase(state, CONFIG)
         if st == 1 then
             total_parent_slots = total_parent_slots + 1
             local d = state.scan_data[k]
-            if d and d.id == CONFIG.crop_id and state.scan_stable[k] then
+            if d and d.id == CONFIG.crop_id then
                 parents = parents + 1
                 if d.g >= CONFIG.target.g and d.ga >= CONFIG.target.ga and d.r >= CONFIG.target.r then
                     target_parents = target_parents + 1
@@ -45,6 +45,18 @@ function logic.checkPhase(state, CONFIG)
         end
     end
     
+    -- MUTATION с флагом: если флаг поднят — проверяем только триггер выхода
+    if state.mutation_active then
+        local live_parents = total_parent_slots - CONFIG.min_dead_parents
+        if live_parents < 0 then live_parents = 0 end
+        if parents <= live_parents then
+            state.mutation_active = false
+            state.phase = "SELECTION"
+            return "SELECTION (живых родителей " .. parents .. " <= " .. live_parents .. ")"
+        end
+        return nil
+    end
+
     -- 0 растений: INIT
     if total_plants == 0 then
         if state.phase ~= "INIT" then state.phase = "INIT"; return "INIT (ждем посадки)" end
@@ -59,23 +71,11 @@ function logic.checkPhase(state, CONFIG)
     
     -- 2+ растения
     if total_plants >= 2 then
-        -- MUTATION: все родительские места заняты target-растениями
+        -- Вход в MUTATION: все родительские места заняты target-растениями
         if parents == total_parent_slots and target_parents == total_parent_slots then
-            if state.phase ~= "MUTATION" then 
-                state.phase = "MUTATION"
-                return "MUTATION (все target)"
-            end
-            return nil
-        end
-        
-        -- Если мы в MUTATION, но живых родителей стало <= порога
-        if state.phase == "MUTATION" then
-            local live_parents = total_parent_slots - CONFIG.min_dead_parents
-            if live_parents < 0 then live_parents = 0 end
-            if parents <= live_parents then
-                state.phase = "SELECTION"
-                return "SELECTION (живых родителей " .. parents .. " <= " .. live_parents .. ")"
-            end
+            state.mutation_active = true
+            state.phase = "MUTATION"
+            return "MUTATION (все target)"
         end
         
         -- SELECTION: если есть хотя бы 1 валидный крест (2+ соседа-родителя)
