@@ -104,8 +104,12 @@ local function mainLoop()
 
             if msg == "READY" then
                 state.robot_ready = true
-                state.busy = false
-                state.current_task = nil
+                if state.phase == "EMERGENCY" then
+                    state.phase = nil  -- checkPhase на следующем тике определит режим по факту поля
+                end
+                if not state.busy then
+                    state.current_task = nil
+                end
                 need_render = true
             elseif msg == "NOT_READY" then
                 state.phase = "EMERGENCY"

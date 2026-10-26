@@ -8,7 +8,8 @@ function logic.checkPhase(state, CONFIG)
     local target_parents = 0
     local total_parent_slots = 0
     local valid_crosses = 0
-    
+    if state.phase == "EMERGENCY" then return nil end
+
     for k, st in pairs(state.cell_status) do
         if st == 1 then
             total_parent_slots = total_parent_slots + 1
@@ -67,10 +68,11 @@ function logic.checkPhase(state, CONFIG)
         
         -- Если мы в MUTATION, но погибло >= min_parents_for_mutation родителей
         if state.phase == "MUTATION" then
-            local dead_parents = total_parent_slots - parents
-            if dead_parents >= CONFIG.min_parents_for_mutation then
+            local live_parents = total_parent_slots - CONFIG.min_dead_parents
+            if live_parents < 0 then live_parents = 0 end
+            if parents <= live_parents then
                 state.phase = "SELECTION"
-                return "SELECTION (погибло " .. dead_parents .. " родителей)"
+                return "SELECTION (живых родителей " .. parents .. " <= " .. live_parents .. ")"
             end
         end
         

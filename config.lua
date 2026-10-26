@@ -8,5 +8,5 @@ return {
     boot_timeout = 180,
     wake_message = "WAKE_UP_MAN",
     port = 109,
-    min_parents_for_mutation = 14
+    min_dead_parents = 4
 }
