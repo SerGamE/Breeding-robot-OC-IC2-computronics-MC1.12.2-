@@ -2,14 +2,16 @@ local scanner = require("scanner")
 local logic = {}
 
 function logic.checkPhase(state, CONFIG)
+    -- EMERGENCY — липкая фаза. Пока не придёт READY, checkPhase её не трогает.
+    if state.phase == "EMERGENCY" then return nil end
+
     local total_plants = 0
     local parents = 0
     local crosses = 0
     local target_parents = 0
     local total_parent_slots = 0
     local valid_crosses = 0
-    if state.phase == "EMERGENCY" then return nil end
-
+    
     for k, st in pairs(state.cell_status) do
         if st == 1 then
             total_parent_slots = total_parent_slots + 1
@@ -66,7 +68,7 @@ function logic.checkPhase(state, CONFIG)
             return nil
         end
         
-        -- Если мы в MUTATION, но погибло >= min_parents_for_mutation родителей
+        -- Если мы в MUTATION, но живых родителей стало <= порога
         if state.phase == "MUTATION" then
             local live_parents = total_parent_slots - CONFIG.min_dead_parents
             if live_parents < 0 then live_parents = 0 end
