@@ -20,9 +20,12 @@ local modem = component.modem
 -- ==============================================================================
 local state = {
     phase = "INIT",
+    emergency = false,
     crop_matrix = {},
     cell_status = {},
     scan_data = {},
+    scan_prev = {},
+    scan_stable = {},
     status_line = {},
     locked = {},
     
@@ -104,14 +107,16 @@ local function mainLoop()
 
             if msg == "READY" then
                 state.robot_ready = true
-                if state.phase == "EMERGENCY" then
-                    state.phase = nil  -- checkPhase на следующем тике определит режим по факту поля
+                if state.emergency then
+                    state.emergency = false
+                    state.phase = nil
                 end
                 if not state.busy then
                     state.current_task = nil
                 end
                 need_render = true
             elseif msg == "NOT_READY" then
+                state.emergency = true
                 state.phase = "EMERGENCY"
                 state.busy = false
                 state.current_task = nil

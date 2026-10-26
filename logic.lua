@@ -2,8 +2,8 @@ local scanner = require("scanner")
 local logic = {}
 
 function logic.checkPhase(state, CONFIG)
-    -- EMERGENCY — липкая фаза. Пока не придёт READY, checkPhase её не трогает.
-    if state.phase == "EMERGENCY" then return nil end
+    -- EMERGENCY — флаг. Пока флаг поднят, checkPhase не трогает фазу.
+    if state.emergency then return nil end
 
     local total_plants = 0
     local parents = 0
@@ -16,7 +16,7 @@ function logic.checkPhase(state, CONFIG)
         if st == 1 then
             total_parent_slots = total_parent_slots + 1
             local d = state.scan_data[k]
-            if d and d.id == CONFIG.crop_id then
+            if d and d.id == CONFIG.crop_id and state.scan_stable[k] then
                 parents = parents + 1
                 if d.g >= CONFIG.target.g and d.ga >= CONFIG.target.ga and d.r >= CONFIG.target.r then
                     target_parents = target_parents + 1

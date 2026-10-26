@@ -50,6 +50,19 @@ function scanner.scan(state, CONFIG, CROP_DB)
             state.scan_data[key] = nil
         end
     end
+
+    -- Анти-мигание: подтверждение изменений двумя сканами подряд
+    for key, _ in pairs(state.crop_matrix) do
+        local cur = state.scan_data[key]
+        local cur_id = cur and cur.id or nil
+        local prev_id = state.scan_prev[key]
+        if prev_id ~= nil and cur_id == prev_id then
+            state.scan_stable[key] = true
+        else
+            state.scan_stable[key] = false
+        end
+        state.scan_prev[key] = cur_id
+    end
 end
 
 function scanner.getNeighbors(state, CONFIG, key)
