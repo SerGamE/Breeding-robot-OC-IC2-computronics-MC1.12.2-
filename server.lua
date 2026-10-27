@@ -20,7 +20,6 @@ local modem = component.modem
 -- ==============================================================================
 local state = {
     phase = "INIT",
-    mutation_active = false,
     crop_matrix = {},
     cell_status = {},
     scan_data = {},
@@ -105,12 +104,8 @@ local function mainLoop()
 
             if msg == "READY" then
                 state.robot_ready = true
-                if state.phase == "EMERGENCY" then
-                    state.phase = nil
-                end
-                if not state.busy then
-                    state.current_task = nil
-                end
+                state.busy = false
+                state.current_task = nil
                 need_render = true
             elseif msg == "NOT_READY" then
                 state.phase = "EMERGENCY"

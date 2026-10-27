@@ -21,8 +21,7 @@ local WAKE_MSG = "WAKE_UP_MAN"
 local WAYPOINT_LABEL = "CHICHI"
 local HOME_FACING = 3 -- 3 = глобальный Юг
 local MIN_STICKS = 32
-local start_x = 0 -- Смещение по X (север)
-local start_z = 1 -- Смещение по Z (восток, первая грядка)
+
 local SLOT_STICK = 1
 local SLOT_AXE   = 2
 local FIRST_CARGO_SLOT = 3
@@ -403,49 +402,6 @@ local function taskPlantMulti(task_id, coords_str)
     dropCargo()
 end
 
-local function doMapping(fx, fz)
-    state.field_x, state.field_z = fx, fz
-    state.cur_x, state.cur_z, state.cur_dir = 0, 0, 0; turn(0)
-    
-    for col = 0, fz - 1 do
-        local is_forward = (col % 2 == 0)
-        -- Вычисляем стартовую и конечную X с учетом start_x
-        local start_pos_x = is_forward and start_x or (start_x + fx - 1)
-        local end_pos_x = is_forward and (start_x + fx - 1) or start_x
-        local step = is_forward and 1 or -1
-        
-        -- Z начинается с start_z
-        local current_z = start_z + col
-        
-        for x = start_pos_x, end_pos_x, step do
-            walk(x, current_z)
-            if robot.count(1) == 0 then refillSticks() end
-            robot.select(1)
-            local placed = robot.placeDown()
-            
-            if not placed then
-                modem.broadcast(PORT, "CALIB_TECH", x, current_z)
-            else
-                modem.broadcast(PORT, "CALIB_CHECK", x, current_z)
-            end
-            
-            while true do
-                local _, _, _, _, _, reply = event.pull(5, "modem_message")
-                if reply == "SERVER_OK" or reply == "SERVER_TECH" then break end
-            end
-            
-            if placed then swingAxe(); os.sleep(1.0) end
-        end
-    end
-    modem.broadcast(PORT, "CALIB_DONE")
-    goHome()
-    
-    -- Обновляем состояние и шлем READY после картографии
-    state.is_ready = true
-    modem.broadcast(PORT, "READY")
-    term.clear()
-    print("READY (Mapping done)")
-end
 -- ==============================================================================
 -- БЛОК 8: ПРОТОКОЛ И ОСНОВНОЙ ЦИКЛ
 -- ==============================================================================
@@ -518,19 +474,7 @@ while true do
     local ev = table.pack(event.pull(0.5, "modem_message"))
     if ev[1] == "modem_message" then
         local _, _, _, _, _, msg, id, action, key, arg2 = table.unpack(ev)
-        
-        -- Обработка START_MAPPING (отдельно от CMD)
-        if msg == "START_MAPPING" then
-            local fx = tonumber(id) -- в START_MAPPING id это field_x, action это field_z
-            local fz = tonumber(action)
-            if fx and fz then
-                term.clear()
-                print("MAPPING: " .. fx .. "x" .. fz)
-                doMapping(fx, fz)
-            end
-        
-        -- Обработка CMD
-        elseif msg == "CMD" then
+        if msg == "CMD" then
             state.pending_ack = nil
             processCommand(tonumber(id), action, key, arg2)
         end

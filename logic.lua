@@ -2,9 +2,6 @@ local scanner = require("scanner")
 local logic = {}
 
 function logic.checkPhase(state, CONFIG)
-    -- EMERGENCY — липкая фаза. Пока не придёт READY, checkPhase её не трогает.
-    if state.phase == "EMERGENCY" then return nil end
-
     local total_plants = 0
     local parents = 0
     local crosses = 0
@@ -45,18 +42,6 @@ function logic.checkPhase(state, CONFIG)
         end
     end
     
-    -- MUTATION с флагом: если флаг поднят — проверяем только триггер выхода
-    if state.mutation_active then
-        local live_parents = total_parent_slots - CONFIG.min_dead_parents
-        if live_parents < 0 then live_parents = 0 end
-        if parents <= live_parents then
-            state.mutation_active = false
-            state.phase = "SELECTION"
-            return "SELECTION (живых родителей " .. parents .. " <= " .. live_parents .. ")"
-        end
-        return nil
-    end
-
     -- 0 растений: INIT
     if total_plants == 0 then
         if state.phase ~= "INIT" then state.phase = "INIT"; return "INIT (ждем посадки)" end
@@ -71,11 +56,22 @@ function logic.checkPhase(state, CONFIG)
     
     -- 2+ растения
     if total_plants >= 2 then
-        -- Вход в MUTATION: все родительские места заняты target-растениями
+        -- MUTATION: все родительские места заняты target-растениями
         if parents == total_parent_slots and target_parents == total_parent_slots then
-            state.mutation_active = true
-            state.phase = "MUTATION"
-            return "MUTATION (все target)"
+            if state.phase ~= "MUTATION" then 
+                state.phase = "MUTATION"
+                return "MUTATION (все target)"
+            end
+            return nil
+        end
+        
+        -- Если мы в MUTATION, но погибло >= min_parents_for_mutation родителей
+        if state.phase == "MUTATION" then
+            local dead_parents = total_parent_slots - parents
+            if dead_parents >= CONFIG.min_parents_for_mutation then
+                state.phase = "SELECTION"
+                return "SELECTION (погибло " .. dead_parents .. " родителей)"
+            end
         end
         
         -- SELECTION: если есть хотя бы 1 валидный крест (2+ соседа-родителя)
