@@ -187,7 +187,6 @@ local function mainLoop()
                 setStatus(key, display_status)
                 ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
                 
-                -- В EMERGENCY всегда шлем EMERGENCY_CLEAR
                 if state.phase == "EMERGENCY" then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
                 else
