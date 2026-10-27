@@ -174,7 +174,8 @@ local function mainLoop()
         end
 
         -- 5. Выдача задач
-        if state.robot_ready and not state.busy then
+        local can_work = state.robot_ready or (state.phase == "EMERGENCY")
+        if can_work and not state.busy then
             local action, key, display_status = tasks.getTask(state, CONFIG)
             if action then
                 state.task_counter = state.task_counter + 1
@@ -186,8 +187,8 @@ local function mainLoop()
                 setStatus(key, display_status)
                 ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
                 
-                -- В EMERGENCY шлем только EMERGENCY_CLEAR
-                if state.phase == "EMERGENCY" and (action == "WEED" or action == "CLEAR") then
+                -- В EMERGENCY всегда шлем EMERGENCY_CLEAR
+                if state.phase == "EMERGENCY" then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
                 else
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, action, key, display_status)
