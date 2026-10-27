@@ -5,9 +5,11 @@ local scanner = {}
 function scanner.scan(state, CONFIG, CROP_DB)
     state.max_parent = {g=0, ga=0, r=0}
     state.max_child  = {g=0, ga=0, r=0}
+    
     for key, uuid in pairs(state.crop_matrix) do
         local ok_comp = component.list()[uuid]
         local p, id, g, ga, r, sz, gp
+        
         if ok_comp then
             local ok_proxy, proxy = pcall(component.proxy, uuid)
             if ok_proxy and proxy then
@@ -22,6 +24,7 @@ function scanner.scan(state, CONFIG, CROP_DB)
                 end
             end
         end
+        
         if id and id ~= "" then
             local db_stages = CROP_DB[id] and CROP_DB[id].stages or 7
             local current_sz = sz or 0
@@ -31,6 +34,7 @@ function scanner.scan(state, CONFIG, CROP_DB)
                 stats = string.format("%d/%d/%d", g or 0, ga or 0, r or 0),
                 stage = string.format("%d/%d", current_sz, db_stages)
             }
+            
             if id == CONFIG.crop_id then
                 local safe_g, safe_ga, safe_r = g or 0, ga or 0, r or 0
                 local st = state.cell_status[key]
