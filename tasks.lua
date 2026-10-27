@@ -3,32 +3,57 @@ local logic = require("logic")
 local tasks = {}
 
 function tasks.getTask(state, CONFIG)
-    -- 1. РЕЖИМЫ ОЧИСТКИ (PAUSE, SHUTDOWN, EMERGENCY)
-    if state.shutdown_mode or state.paused or state.phase == "EMERGENCY" then
-        -- Ищем сорняки
+    -- 1. РЕЖИМЫ ОЧИСТКИ (EMERGENCY)
+    if state.phase == "EMERGENCY" then
+        -- Приоритет 1: Growth >= 24 (любые)
         for k, d in pairs(state.scan_data) do
-            if d.id == "weed" and not state.locked[k] then 
-                if state.phase == "EMERGENCY" then
-                    return "EMERGENCY_CLEAR", k, "EMERG_CLEAR" 
-                else
-                    return "WEED", k, "WEED" 
-                end
+            if d.g and d.g >= 24 and not state.locked[k] then
+                return "EMERGENCY_CLEAR", k, "EMERG_G24"
             end
         end
-        -- Ищем пустые жердочки
+        -- Приоритет 2: Сорняки на крестах
+        for k, d in pairs(state.scan_data) do
+            if d.id == "weed" and state.cell_status[k] == 2 and not state.locked[k] then
+                return "EMERGENCY_CLEAR", k, "EMERG_WEED"
+            end
+        end
+        -- Приоритет 3: Сорняки на родителях
+        for k, d in pairs(state.scan_data) do
+            if d.id == "weed" and state.cell_status[k] == 1 and not state.locked[k] then
+                return "EMERGENCY_CLEAR", k, "EMERG_WEED_P"
+            end
+        end
+        -- Приоритет 4: DBL (двойные жердочки) на крестах
+        for k, d in pairs(state.scan_data) do
+            if d.id == "" and state.cell_status[k] == 2 and not state.locked[k] then
+                return "EMERGENCY_CLEAR", k, "EMERG_DBL"
+            end
+        end
+        -- Приоритет 5: Жердочки на родителях (пустые)
+        for k, d in pairs(state.scan_data) do
+            if d.id == "" and state.cell_status[k] == 1 and not state.locked[k] then
+                return "EMERGENCY_CLEAR", k, "EMERG_STICK_P"
+            end
+        end
+        return nil
+    end
+
+    -- 2. РЕЖИМЫ PAUSE / SHUTDOWN
+    if state.shutdown_mode or state.paused then
+        for k, d in pairs(state.scan_data) do
+            if d.id == "weed" and not state.locked[k] then 
+                return "WEED", k, "WEED" 
+            end
+        end
         for k, d in pairs(state.scan_data) do
             if d.id == "" and not state.locked[k] then 
-                if state.phase == "EMERGENCY" then
-                    return "EMERGENCY_CLEAR", k, "EMERG_CLEAR" 
-                else
-                    return "CLEAR", k, "CLEAR" 
-                end
+                return "CLEAR", k, "CLEAR" 
             end
         end
         return nil
     end
     
-    -- 2. СОРНЯКИ (штатные)
+    -- 3. СОРНЯКИ (штатные)
     for k, d in pairs(state.scan_data) do
         if d.id == "weed" and not state.locked[k] then
             return "WEED", k, (state.cell_status[k] == 1 and "CLEAR" or "WEED")
@@ -37,7 +62,7 @@ function tasks.getTask(state, CONFIG)
     
     if state.phase == "INIT" then return nil end
     
-    -- 3. ПУСТЫЕ DBL (без 2 зрелых предков)
+    -- 4. ПУСТЫЕ DBL (без 2 зрелых предков)
     for k, d in pairs(state.scan_data) do
         if state.cell_status[k] == 2 and d.id == "" and not state.locked[k] then
             local mature = 0
@@ -50,7 +75,7 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 4. УНИЧТОЖЕНИЕ (WEAK, EXCESS, NEW)
+    -- 5. УНИЧТОЖЕНИЕ (WEAK, EXCESS, NEW)
     if state.phase == "SELECTION" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and not state.locked[k] then
@@ -70,7 +95,8 @@ function tasks.getTask(state, CONFIG)
             end
         end
         
-        -- 5. ЗАМЕНА (REPLACE)
+        -- 6. ЗАМЕНА (REPLACE)
+        -- (этот блок не трогаем, оставляем как было для будущих тестов)
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
                 local parents = {}
@@ -101,7 +127,7 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 6. УСТАНОВКА DBL
+    -- 7. УСТАНОВКА DBL
     if state.phase == "SELECTION" or state.phase == "BREEDING" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and not d and not state.locked[k] then
