@@ -194,7 +194,13 @@ local function mainLoop()
 
                 setStatus(key, display_status)
                 ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
-                modem.broadcast(CONFIG.port, "CMD", state.task_counter, action, key, display_status)
+                
+                -- Если EMERGENCY, шлем EMERGENCY_CLEAR вместо WEED/CLEAR
+                if state.phase == "EMERGENCY" and (action == "WEED" or action == "CLEAR") then
+                    modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
+                else
+                    modem.broadcast(CONFIG.port, "CMD", state.task_counter, action, key, display_status)
+                end
                 need_render = true
             end
         end

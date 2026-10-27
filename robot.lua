@@ -407,7 +407,11 @@ end
 -- ==============================================================================
 local function processCommand(task_id, action, key, arg2)
     if state.last_completed_task_id == task_id then return end
-    if not state.is_ready and action ~= "EMERGENCY_CLEAR" then return end
+    
+    -- Разрешаем только EMERGENCY_CLEAR даже если робот не готов (сносим голыми руками)
+    if not state.is_ready and action ~= "EMERGENCY_CLEAR" then 
+        return 
+    end
     
     local success, err = pcall(function()
         if action == "PLACE_DOUBLE" then taskPlaceDouble(task_id, key)

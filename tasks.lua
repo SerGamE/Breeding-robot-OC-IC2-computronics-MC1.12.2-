@@ -5,11 +5,25 @@ local tasks = {}
 function tasks.getTask(state, CONFIG)
     -- 1. РЕЖИМЫ ОЧИСТКИ (PAUSE, SHUTDOWN, EMERGENCY)
     if state.shutdown_mode or state.paused or state.phase == "EMERGENCY" then
+        -- Ищем сорняки
         for k, d in pairs(state.scan_data) do
-            if d.id == "weed" and not state.locked[k] then return "WEED", k, "WEED" end
+            if d.id == "weed" and not state.locked[k] then 
+                if state.phase == "EMERGENCY" then
+                    return "EMERGENCY_CLEAR", k, "EMERG_CLEAR" 
+                else
+                    return "WEED", k, "WEED" 
+                end
+            end
         end
+        -- Ищем пустые жердочки
         for k, d in pairs(state.scan_data) do
-            if d.id == "" and not state.locked[k] then return "CLEAR", k, "CLEAR" end
+            if d.id == "" and not state.locked[k] then 
+                if state.phase == "EMERGENCY" then
+                    return "EMERGENCY_CLEAR", k, "EMERG_CLEAR" 
+                else
+                    return "CLEAR", k, "CLEAR" 
+                end
+            end
         end
         return nil
     end
@@ -23,12 +37,14 @@ function tasks.getTask(state, CONFIG)
     
     if state.phase == "INIT" then return nil end
     
-    -- 3. ПУСТЫЕ DBL
+    -- 3. ПУСТЫЕ DBL (без 2 зрелых предков)
     for k, d in pairs(state.scan_data) do
         if state.cell_status[k] == 2 and d.id == "" and not state.locked[k] then
             local mature = 0
             for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then mature = mature + 1 end
+                if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                    mature = mature + 1 
+                end
             end
             if mature < 2 then return "CLEAR", k, "CLEAR" end
         end
@@ -43,7 +59,9 @@ function tasks.getTask(state, CONFIG)
                 else
                     local parents = {}
                     for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
+                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then 
+                            table.insert(parents, state.scan_data[nk]) 
+                        end
                     end
                     local cls = logic.classify(d, parents, CONFIG)
                     if cls == "EXCESS" then return "DESTROY", k, "EXCESS" end
@@ -57,7 +75,9 @@ function tasks.getTask(state, CONFIG)
             if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
                 local parents = {}
                 for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
+                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then 
+                        table.insert(parents, state.scan_data[nk]) 
+                    end
                 end
                 if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
                     local target = nil
@@ -87,7 +107,9 @@ function tasks.getTask(state, CONFIG)
             if state.cell_status[k] == 2 and not d and not state.locked[k] then
                 local mature = 0
                 for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then mature = mature + 1 end
+                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                        mature = mature + 1 
+                    end
                 end
                 if mature >= 2 then return "PLACE_DOUBLE", k, "PLACE_DBL" end
             end
