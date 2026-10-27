@@ -163,9 +163,11 @@ local function mainLoop()
 
         -- 4. Проверка фаз (раз в 2 сек)
         if os.time() - last_phase_check > 2 then
-            local phase_msg = logic.checkPhase(state, CONFIG)
-            if phase_msg then
-                ui.logChat("S", "Phase -> " .. phase_msg)
+            if state.phase ~= "EMERGENCY" then
+                local phase_msg = logic.checkPhase(state, CONFIG)
+                if phase_msg then
+                    ui.logChat("S", "Phase -> " .. phase_msg)
+                end
             end
             last_phase_check = os.time()
             need_render = true
