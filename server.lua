@@ -1,5 +1,5 @@
 -- ==============================================================================
--- SERVER: server.lua (Main Loop)
+-- SERVER: server.lua (Network & EMERGENCY fix)
 -- ==============================================================================
 local component = require("component")
 local event     = require("event")
@@ -35,7 +35,9 @@ local state = {
     max_child  = {g=0, ga=0, r=0},
     
     paused = false,
-    shutdown_mode = false
+    shutdown_mode = false,
+    
+    emergency_notified = false -- Флаг для защиты от спама в чат
 }
 
 local function setStatus(key, text) state.status_line[key] = text end
@@ -61,7 +63,7 @@ local function mainLoop()
     end
     ui.logChat("S", "Загружено: " .. p_count .. " род, " .. c_count .. " кр, " .. t_count .. " тех.")
     
-    -- Создаем кнопки (пока не работают, но пусть будут)
+    -- Создаем кнопки
     ui.createButton(60, 2, 10, 1, "PAUSE", function() 
         state.paused = not state.paused 
         ui.logChat("S", state.paused and "PAUSE ВКЛ" or "PAUSE ВЫКЛ")
@@ -72,48 +74,53 @@ local function mainLoop()
         ui.logChat("S", "SHUTDOWN: Начинаю очистку...")
     end, 0x550000)
 
-    -- Включаем точный режим экрана, если он есть
     if component.isAvailable("screen") then
         pcall(function() component.screen.setPrecise(true) end)
     end
+
+    -- Будим робота при старте
+    wakeRobot()
+    ui.logChat("S", "Отправлен WAKE_UP роботу")
 
     local last_scan = 0
     local last_phase_check = 0
 
     while true do
-        -- Слушаем модем и клики
-        local ev = table.pack(event.pull(0.1, "modem_message", "touch"))
+        -- Слушаем модем
+        local ev = table.pack(event.pull(0.1, "modem_message"))
         local need_render = false
 
-        -- 1. Обработка кликов по кнопкам
-        if ev[1] == "touch" then
-            local x, y = ev[3], ev[4]
-            for _, btn in ipairs(ui.getButtons()) do
-                if x >= btn.x and x < btn.x + btn.w and y >= btn.y and y < btn.y + btn.h then
-                    btn.action()
-                    need_render = true
-                    break
-                end
-            end
-        end
-
-        -- 2. Обработка сети
+        -- 1. Обработка сети
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, id, arg1, arg2, arg3 = table.unpack(ev)
-            state.busy_time = os.time() -- Сбрасываем таймаут при любом сообщении
+            
+            -- Любое сообщение от робота сбрасывает таймаут ожидания
+            state.busy_time = os.time()
 
             if msg == "READY" then
                 state.robot_ready = true
                 state.busy = false
                 state.current_task = nil
+                state.locked = {} 
+                if state.phase == "EMERGENCY" then
+                    state.phase = "INIT"
+                    ui.logChat("S", "EMERGENCY OFF (робот починился)")
+                end
+                state.emergency_notified = false
                 need_render = true
+                
             elseif msg == "NOT_READY" then
-                state.phase = "EMERGENCY"
+                state.robot_ready = false
                 state.busy = false
                 state.current_task = nil
                 state.locked = {} 
-                ui.logChat("R<", "АВАРИЯ! Ждем ремонта.")
+                state.phase = "EMERGENCY"
+                if not state.emergency_notified then
+                    ui.logChat("R<", "АВАРИЯ! Робот требует ремонта.")
+                    state.emergency_notified = true
+                end
                 need_render = true
+                
             elseif msg == "ACK" then
                 if state.current_task and state.current_task.id == id then
                     state.busy = false
@@ -136,26 +143,25 @@ local function mainLoop()
             end
         end
 
-        -- 3. Таймауты
+        -- 2. Таймаут ожидания робота
         if state.busy and (os.time() - state.busy_time > CONFIG.answer_timeout) then
-            if os.time() - state.last_wake_time > 30 then
-                ui.logChat("S", "Таймаут! Бужу робота.")
+            if os.time() - state.last_wake_time > 15 then
+                ui.logChat("S", "Таймаут задачи. Бужу робота.")
                 wakeRobot()
-                state.busy = false
+                state.locked = {} -- Освобождаем лок, чтобы робот мог взять задачу заново, если оживет
                 state.current_task = nil
-                state.locked = {}
-                need_render = true
+                -- busy НЕ сбрасываем, ждем READY/ACK или следующего таймаута
             end
         end
 
-        -- 4. Сканирование (раз в 0.5 сек)
+        -- 3. Сканирование (раз в 0.5 сек)
         if os.time() - last_scan > 0.5 then
             scanner.scan(state, CONFIG, CROP_DB)
             last_scan = os.time()
             need_render = true
         end
 
-        -- 5. Проверка фаз (раз в 2 сек)
+        -- 4. Проверка фаз (раз в 2 сек)
         if os.time() - last_phase_check > 2 then
             local phase_msg = logic.checkPhase(state, CONFIG)
             if phase_msg then
@@ -165,24 +171,7 @@ local function mainLoop()
             need_render = true
         end
 
-        -- 6. SHUTDOWN (если включен, чистим поле и выключаемся)
-        if state.shutdown_mode and not state.busy then
-            local has_threats = false
-            for k, d in pairs(state.scan_data) do
-                if d.id == "weed" or d.id == "" then
-                    has_threats = true
-                    break
-                end
-            end
-            if not has_threats then
-                ui.logChat("S", "Безопасное завершение работы.")
-                ui.render(state, CONFIG, true)
-                os.sleep(2)
-                computer.shutdown()
-            end
-        end
-
-        -- 7. Выдача задач
+        -- 5. Выдача задач
         if state.robot_ready and not state.busy then
             local action, key, display_status = tasks.getTask(state, CONFIG)
             if action then
@@ -195,7 +184,7 @@ local function mainLoop()
                 setStatus(key, display_status)
                 ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
                 
-                -- Если EMERGENCY, шлем EMERGENCY_CLEAR вместо WEED/CLEAR
+                -- В EMERGENCY шлем только EMERGENCY_CLEAR
                 if state.phase == "EMERGENCY" and (action == "WEED" or action == "CLEAR") then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
                 else
@@ -205,7 +194,7 @@ local function mainLoop()
             end
         end
 
-        -- 8. Отрисовка
+        -- 6. Отрисовка
         if need_render then 
             ui.render(state, CONFIG, false) 
         end
