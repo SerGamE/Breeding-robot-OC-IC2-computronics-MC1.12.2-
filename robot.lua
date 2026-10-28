@@ -189,6 +189,27 @@ local function getStackInHand()
 end
 
 -- ==============================================================================
+-- БЛОК 4.5: БЫСТРАЯ ПРОВЕРКА ИНВЕНТАРЯ
+-- ==============================================================================
+local function quickInventoryCheck()
+    local s1 = inv.getStackInInternalSlot(1)
+    if not s1 or s1.name ~= TOOLS.stick or robot.count(1) < MIN_STICKS then
+        return false, "NO_STICKS"
+    end
+    
+    local s2 = inv.getStackInInternalSlot(2)
+    if not s2 or s2.name ~= TOOLS.weapon then
+        return false, "NO_WEAPON"
+    end
+    
+    local hand = getStackInHand()
+    if hand ~= TOOLS.trowel then
+        return false, "NO_TROWEL"
+    end
+    
+    return true
+end
+-- ==============================================================================
 -- БЛОК 5: САМОДИАГНОСТИКА (selfDiagnosis) - СТРОГО ПО АЛГОРИТМУ
 -- ==============================================================================
 local function selfDiagnosis()
@@ -318,7 +339,31 @@ local function refillSticks()
     robot.suckDown(64 - robot.count(1))
     goHome()
 end
-
+-- ==============================================================================
+-- БЛОК 6.5: ОЧИСТКА ИНВЕНТАРЯ ПЕРЕД PLANT_MULTI
+-- ==============================================================================
+local function cleanupBeforePlantMulti()
+    -- 1. Оставить только MIN_STICKS в слоте 1, остальное в сундук (0, 1)
+    local total = robot.count(1)
+    if total > MIN_STICKS then
+        walk(0, 1)
+        robot.select(1)
+        robot.dropDown()
+        robot.suckDown(MIN_STICKS)
+        goHome()
+    end
+    
+    -- 2. Всё из слотов 3..N в сундук (0, -1)
+    walk(0, -1)
+    for slot = FIRST_CARGO_SLOT, robot.inventorySize() do
+        if robot.count(slot) > 0 then
+            robot.select(slot)
+            robot.dropDown()
+        end
+    end
+    robot.select(1)
+    goHome()
+end
 -- ==============================================================================
 -- БЛОК 7: ОБРАБОТКА ЗАДАЧ (Task Handlers)
 -- ==============================================================================
@@ -408,9 +453,24 @@ end
 local function processCommand(task_id, action, key, arg2)
     if state.last_completed_task_id == task_id then return end
     
-    -- Разрешаем только EMERGENCY_CLEAR даже если робот не готов (сносим голыми руками)
     if not state.is_ready and action ~= "EMERGENCY_CLEAR" then 
         return 
+    end
+    
+    -- ПРОВЕРКА ИНВЕНТАРЯ ПЕРЕД ЛЮБОЙ ЗАДАЧЕЙ
+    local inv_ok, reason = quickInventoryCheck()
+    if not inv_ok then
+        state.is_ready = false
+        state.is_emergency = true
+        modem.broadcast(PORT, "NOT_READY")
+        term.clear()
+        print("PRE-TASK FAIL: " .. reason)
+        return
+    end
+    
+    -- Для PLANT_MULTI / REPLACE_TRY — очистка инвентаря
+    if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
+        cleanupBeforePlantMulti()
     end
     
     local success, err = pcall(function()
