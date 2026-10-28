@@ -3,6 +3,14 @@ local logic = require("logic")
 local tasks = {}
 
 function tasks.getTask(state, CONFIG)
+    -- G24: сносим везде, кроме EMERGENCY (там уже есть) и PAUSED
+    if not state.paused and not state.shutdown_mode then
+        for k, d in pairs(state.scan_data) do
+            if d.g and d.g >= 24 and not state.locked[k] then
+                return "DESTROY", k, "G24"
+            end
+        end
+    end
     -- 1. РЕЖИМЫ ОЧИСТКИ (EMERGENCY)
     if state.phase == "EMERGENCY" then
         -- Приоритет 1: Growth >= 24 (любые)
@@ -149,7 +157,7 @@ function tasks.getTask(state, CONFIG)
     -- 8. УСТАНОВКА DBL (SELECTION, BREEDING, MUTATION)
     if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
-            if state.cell_status[k] == 2 and not d and not state.locked[k] then
+            if state.cell_status[k] == 2 and (not d or d.id == "") and not state.locked[k] then
                 local mature = 0
                 for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
                     if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
