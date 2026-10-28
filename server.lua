@@ -126,19 +126,16 @@ local function mainLoop()
                     need_render = true
                 end
             elseif msg == "REPLACE_RESULT" then
-                -- msg, id, cross_key, weak_key, seeds_count
                 if state.current_task and state.current_task.id == id then
                     state.busy = false
                     state.current_task = nil
-                    if state.locked[arg1] then state.locked[arg1] = nil end -- cross_key
-                    if state.locked[arg2] then state.locked[arg2] = nil end -- weak_key
+                    if state.locked[arg1] then state.locked[arg1] = nil end
+                    if state.locked[arg2] then state.locked[arg2] = nil end
                     setStatus(arg1, nil)
                     
                     local seeds_count = tonumber(arg3) or 0
                     if seeds_count > 0 then
-                        -- Ищем N самых слабых родителей (пустые приоритетнее)
                         local targets = {}
-                        -- 1. Пустые
                         for pk, pd in pairs(state.scan_data) do
                             if state.cell_status[pk] == 1 and not state.locked[pk] then
                                 if not pd or pd.id ~= CONFIG.crop_id then
@@ -147,7 +144,7 @@ local function mainLoop()
                                 end
                             end
                         end
-                        -- 2. Если не хватило — слабые
+                        
                         if #targets < seeds_count then
                             local candidates = {}
                             for pk, pd in pairs(state.scan_data) do
@@ -174,7 +171,6 @@ local function mainLoop()
                     end
                     need_render = true
                 end
-            end
             elseif msg == "ALERT" then
                 ui.logChat("R<", "ERROR: " .. tostring(arg1))
                 need_render = true
