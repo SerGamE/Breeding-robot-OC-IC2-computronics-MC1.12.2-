@@ -457,15 +457,17 @@ local function processCommand(task_id, action, key, arg2)
         return 
     end
     
-    -- ПРОВЕРКА ИНВЕНТАРЯ ПЕРЕД ЛЮБОЙ ЗАДАЧЕЙ
-    local inv_ok, reason = quickInventoryCheck()
-    if not inv_ok then
-        state.is_ready = false
-        state.is_emergency = true
-        modem.broadcast(PORT, "NOT_READY")
-        term.clear()
-        print("PRE-TASK FAIL: " .. reason)
-        return
+    -- ПРОВЕРКА ИНВЕНТАРЯ ПЕРЕД ЛЮБОЙ ЗАДАЧЕЙ, КРОМЕ EMERGENCY_CLEAR
+    if action ~= "EMERGENCY_CLEAR" then
+        local inv_ok, reason = quickInventoryCheck()
+        if not inv_ok then
+            state.is_ready = false
+            state.is_emergency = true
+            modem.broadcast(PORT, "NOT_READY")
+            term.clear()
+            print("PRE-TASK FAIL: " .. reason)
+            return
+        end
     end
     
     -- Для PLANT_MULTI / REPLACE_TRY — очистка инвентаря
