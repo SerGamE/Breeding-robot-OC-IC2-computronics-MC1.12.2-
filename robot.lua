@@ -405,29 +405,35 @@ local function taskEmergencyClear(task_id, key)
 end
 
 local function taskReplaceTry(task_id, cross_key, weak_key)
-    local empty_slots = {}
+    -- 1. Собираем пустые слоты ДО сноса
+    local my_empty_slots = {}
     for slot = 3, robot.inventorySize() do
         if inv.getStackInInternalSlot(slot) == nil then
-            table.insert(empty_slots, slot)
+            table.insert(my_empty_slots, slot)
         end
     end
     
+    -- 2. Идём на крест, сносим
     local cx, cz = cross_key:match("(%d+),(%d+)")
-    if robot.count(3) > 0 then dropCargo() end
     walk(tonumber(cx), tonumber(cz))
     swingAxe(); os.sleep(1.5)
     
+    -- 3. Сканируем my_empty_slots на семена
     state.my_best_seeds = {}
-    for _, slot in ipairs(empty_slots) do
+    for _, slot in ipairs(my_empty_slots) do
         local s = inv.getStackInInternalSlot(slot)
         if s and s.name == "ic2:crop_seed_bag" then
             table.insert(state.my_best_seeds, slot)
         end
     end
     
+    -- 4. Ставим DBL
     placeDoubleCrop()
-    modem.broadcast(PORT, "REPLACE_RESULT", task_id, "ok", cross_key, weak_key, #state.my_best_seeds)
     
+    -- 5. Шлём результат
+    modem.broadcast(PORT, "REPLACE_RESULT", task_id, cross_key, weak_key, #state.my_best_seeds)
+    
+    -- 6. Если 0 семян — на базу скидывать хлам
     if #state.my_best_seeds == 0 then dropCargo() end
 end
 

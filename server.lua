@@ -4,7 +4,7 @@
 local component = require("component")
 local event     = require("event")
 local computer  = require("computer")
-
+local serialization = require("serialization")
 local CONFIG      = require("config")
 local CROP_DB     = require("SeedsDB")
 local ui          = require("ui")
@@ -126,13 +126,55 @@ local function mainLoop()
                     need_render = true
                 end
             elseif msg == "REPLACE_RESULT" then
+                -- msg, id, cross_key, weak_key, seeds_count
                 if state.current_task and state.current_task.id == id then
                     state.busy = false
                     state.current_task = nil
-                    if state.locked[arg1] then state.locked[arg1] = nil end
+                    if state.locked[arg1] then state.locked[arg1] = nil end -- cross_key
+                    if state.locked[arg2] then state.locked[arg2] = nil end -- weak_key
                     setStatus(arg1, nil)
+                    
+                    local seeds_count = tonumber(arg3) or 0
+                    if seeds_count > 0 then
+                        -- Ищем N самых слабых родителей (пустые приоритетнее)
+                        local targets = {}
+                        -- 1. Пустые
+                        for pk, pd in pairs(state.scan_data) do
+                            if state.cell_status[pk] == 1 and not state.locked[pk] then
+                                if not pd or pd.id ~= CONFIG.crop_id then
+                                    table.insert(targets, pk)
+                                    if #targets >= seeds_count then break end
+                                end
+                            end
+                        end
+                        -- 2. Если не хватило — слабые
+                        if #targets < seeds_count then
+                            local candidates = {}
+                            for pk, pd in pairs(state.scan_data) do
+                                if state.cell_status[pk] == 1 and pd.id == CONFIG.crop_id and not state.locked[pk] and pk ~= arg2 then
+                                    table.insert(candidates, {key=pk, score=pd.g+pd.ga+pd.r})
+                                end
+                            end
+                            table.sort(candidates, function(a,b) return a.score < b.score end)
+                            for _, c in ipairs(candidates) do
+                                table.insert(targets, c.key)
+                                if #targets >= seeds_count then break end
+                            end
+                        end
+                        
+                        if #targets > 0 then
+                            state.task_counter = state.task_counter + 1
+                            state.busy = true
+                            state.busy_uptime = computer.uptime()
+                            state.current_task = { id = state.task_counter, key = arg1, action = "PLANT_MULTI" }
+                            local coords = serialization.serialize(targets)
+                            modem.broadcast(CONFIG.port, "CMD", state.task_counter, "PLANT_MULTI", coords)
+                            ui.logChat("S>", string.format("PLANT_MULTI #%d -> %d slots", state.task_counter, #targets))
+                        end
+                    end
                     need_render = true
                 end
+            end
             elseif msg == "ALERT" then
                 ui.logChat("R<", "ERROR: " .. tostring(arg1))
                 need_render = true

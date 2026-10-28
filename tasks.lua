@@ -75,8 +75,8 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 5. УНИЧТОЖЕНИЕ (WEAK, EXCESS, NEW)
-    if state.phase == "SELECTION" or state.phase == "MUTATION" then
+    -- 5. УНИЧТОЖЕНИЕ (WEAK, EXCESS, NEW) — только для SELECTION
+    if state.phase == "SELECTION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and not state.locked[k] then
                 if d.id ~= CONFIG.crop_id then
@@ -94,9 +94,27 @@ function tasks.getTask(state, CONFIG)
                 end
             end
         end
-        
-        -- 6. ЗАМЕНА (REPLACE)
-        -- (этот блок не трогаем, оставляем как было для будущих тестов)
+    end
+    
+    -- 6. MUTATION: снос WEAK у крестов с crop_id (только WEAK, не NEW/EXCESS!)
+    if state.phase == "MUTATION" then
+        for k, d in pairs(state.scan_data) do
+            if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and not state.locked[k] then
+                local parents = {}
+                for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then 
+                        table.insert(parents, state.scan_data[nk]) 
+                    end
+                end
+                if logic.classify(d, parents, CONFIG) == "WEAK" then 
+                    return "DESTROY", k, "WEAK" 
+                end
+            end
+        end
+    end
+    
+    -- 7. MultiPlant: топ-ребёнок → на пустые/слабые родительские места
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
                 local parents = {}
@@ -106,6 +124,7 @@ function tasks.getTask(state, CONFIG)
                     end
                 end
                 if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
+                    -- Ищем слабого родителя: сначала пустой, потом с худшим скором
                     local target = nil
                     for pk, pd in pairs(state.scan_data) do
                         if state.cell_status[pk] == 1 and not state.locked[pk] then
@@ -127,8 +146,8 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 7. УСТАНОВКА DBL
-    if state.phase == "SELECTION" or state.phase == "BREEDING" then
+    -- 8. УСТАНОВКА DBL (SELECTION, BREEDING, MUTATION)
+    if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and not d and not state.locked[k] then
                 local mature = 0
