@@ -139,7 +139,7 @@ function tasks.getTask(state, CONFIG)
     -- 10. УСТАНОВКА DBL
     if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
-            if state.cell_status[k] == 2 and (not d or d.id == "") and not state.locked[k] then
+            if state.cell_status[k] == 2 and not d and not state.locked[k] then
                 local mature = 0
                 for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
                     if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then mature = mature + 1 end
