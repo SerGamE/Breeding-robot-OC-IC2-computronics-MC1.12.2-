@@ -62,15 +62,18 @@ function tasks.getTask(state, CONFIG)
     end
     
     -- 6. ПУСТЫЕ DBL (без 2 зрелых предков)
-    for k, d in pairs(state.scan_data) do
-        if state.cell_status[k] == 2 and (not d or d.id == "") and not state.locked[k] then
-            local mature = 0
-            for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
-                    mature = mature + 1 
+    for k, st in pairs(state.cell_status) do
+        if st == 2 and not state.locked[k] then
+            local d = state.scan_data[k]
+            if d and d.id == "" then
+                local mature = 0
+                for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                        mature = mature + 1 
+                    end
                 end
+                if mature < 2 then return "CLEAR", k, "CLEAR" end
             end
-            if mature < 2 then return "CLEAR", k, "CLEAR" end
         end
     end
     
@@ -136,15 +139,22 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 10. УСТАНОВКА DBL
+        -- 10. УСТАНОВКА DBL
     if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
-        for k, d in pairs(state.scan_data) do
-            if state.cell_status[k] == 2 and not d and not state.locked[k] then
-                local mature = 0
-                for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then mature = mature + 1 end
+        for k, st in pairs(state.cell_status) do
+            if st == 2 and not state.locked[k] then
+                local d = state.scan_data[k]
+                -- d == nil -> нет компонента (пустая клетка)
+                -- d.id == "" -> стоит пустая жердочка (одинарная или двойная)
+                if not d then
+                    local mature = 0
+                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                            mature = mature + 1 
+                        end
+                    end
+                    if mature >= 2 then return "PLACE_DOUBLE", k, "PLACE_DBL" end
                 end
-                if mature >= 2 then return "PLACE_DOUBLE", k, "PLACE_DBL" end
             end
         end
     end
