@@ -212,6 +212,26 @@ local function mainLoop()
         local can_work = state.robot_ready or (state.phase == "EMERGENCY")
         if can_work and not state.busy then
             local action, key, display_status = tasks.getTask(state, CONFIG)
+                        -- DEBUG: сколько крестов и сколько из них с 2+ зрелыми предками
+                        local dbg_cross, dbg_ready = 0, 0
+                        for k, st in pairs(state.cell_status) do
+                            if st == 2 then
+                                dbg_cross = dbg_cross + 1
+                                local d = state.scan_data[k]
+                                if not d or d.id == "" then
+                                    local mature = 0
+                                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                                            mature = mature + 1 
+                                        end
+                                    end
+                                    if mature >= 2 then dbg_ready = dbg_ready + 1 end
+                                end
+                            end
+                        end
+                        if dbg_cross > 0 then
+                            ui.logChat("DBG", "cross="..dbg_cross.." ready="..dbg_ready)
+                        end            
             if action then
                 state.task_counter = state.task_counter + 1
                 state.busy = true
