@@ -246,7 +246,7 @@ local function selfDiagnosis()
             robot.turnRight()
         end
     end
-    
+
     local hand = getStackInHand()
     if hand ~= TOOLS.trowel then
         local found = false
@@ -350,41 +350,58 @@ local function placeDoubleCrop()
     robot.select(1); inv.equip(); robot.useDown(); robot.useDown(); inv.equip(); robot.select(1)
 end
 
-local function dropCargo()
-    -- 1. Сначала палки в сундук 2 (0, 1)
-    walk(0, 1)
+-- ==============================================================================
+-- БЛОК 6.2: ОЧИСТКА ЛИШНИХ ЖЕРДОЧЕК (Универсальная)
+-- ==============================================================================
+local function dropExcessSticks()
+    -- 1. Собираем слоты, где лежат палки (кроме слота 1)
+    local stick_slots = {}
     for slot = 3, robot.inventorySize() do
         local s = inv.getStackInInternalSlot(slot)
         if s and s.name == TOOLS.stick then
-            robot.select(slot); robot.dropDown()
+            table.insert(stick_slots, slot)
         end
     end
+    
+    -- 2. Если ничего нет, просто выходим
+    if #stick_slots == 0 then return end
+    
+    -- 3. Едем к сундуку 2 (0,1) и скидываем
+    walk(0, 1)
+    for _, slot in ipairs(stick_slots) do
+        robot.select(slot)
+        robot.dropDown()
+    end
+    
+    robot.select(1)
+    goHome()
+end
+
+llocal function refillSticks()
+    walk(0, 1) -- к сундуку 2
+    robot.select(1)
+    robot.suckDown(64 - robot.count(1))
+    
+    -- Вызываем универсальную очистку лишних палок
+    dropExcessSticks()
+end
+
+local function dropCargo()
+    -- 1. Сначала чистим палки (если они есть) через универсальную функцию
+    -- (dropExcessSticks сама вернет робота на базу в конце)
+    dropExcessSticks()
+    
     -- 2. Потом остальное в сундук 1 (0, -1)
     walk(0, -1)
     for slot = 3, robot.inventorySize() do
         if robot.count(slot) > 0 then
-            robot.select(slot); robot.dropDown()
+            robot.select(slot)
+            robot.dropDown()
         end
     end
-    robot.select(1); goHome()
-end
-
-local function refillSticks()
-    walk(0, 1) -- к сундуку 2
     robot.select(1)
-    robot.suckDown(64 - robot.count(1))
-    -- Чистим лишние жердочки обратно в сундук
-    local extra = false
-    for slot = 3, robot.inventorySize() do
-        local s = inv.getStackInInternalSlot(slot)
-        if s and s.name == TOOLS.stick then
-            robot.select(slot); robot.dropDown(); extra = true
-        end
-    end
-    if extra then os.sleep(0.5) end
-    robot.select(1); goHome()
+    goHome()
 end
-
 
 -- БЛОК 6.5: ОЧИСТКА ИНВЕНТАРЯ ПЕРЕД PLANT_MULTI
 local function cleanupBeforePlantMulti()
