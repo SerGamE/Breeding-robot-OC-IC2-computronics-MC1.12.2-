@@ -512,6 +512,10 @@ local function processCommand(task_id, action, key, arg2)
     
     state.last_completed_task_id = task_id
     state.pending_ack = { id = task_id, key = key }
+    -- Если вернулись на базу и всё ок — сообщаем
+    if state.cur_x == 0 and state.cur_z == 0 and state.is_ready then
+        modem.broadcast(PORT, "READY")
+    end
 end
 
 -- ==============================================================================
@@ -521,13 +525,10 @@ term.clear()
 setupTools()
 emergencyGoHome()
 
--- Фоновый поток: ALIVE + READY (если готов)
+-- Фоновый поток: только ALIVE
 thread.create(function()
     while true do
         modem.broadcast(PORT, "ALIVE")
-        if state.is_ready then
-            modem.broadcast(PORT, "READY")
-        end
         os.sleep(5)
     end
 end)
@@ -538,12 +539,15 @@ local last_diag_time = 0
 local last_quick_check = 0
 
 while true do
-    -- 1. Heartbeat
+    -- 1. Heartbeat (READY/NOT_READY шлем только с базы)
     if os.time() - last_heartbeat >= 5 then
-        if state.is_ready then
-            modem.broadcast(PORT, "READY")
-        else
-            modem.broadcast(PORT, "NOT_READY")
+        local at_base = (state.cur_x == 0 and state.cur_z == 0)
+        if at_base then
+            if state.is_ready then
+                modem.broadcast(PORT, "READY")
+            else
+                modem.broadcast(PORT, "NOT_READY")
+            end
         end
         last_heartbeat = os.time()
     end
