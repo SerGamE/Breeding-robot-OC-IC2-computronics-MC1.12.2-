@@ -241,12 +241,15 @@ local function quickInventoryCheck()
         return false, "NO_TROWEL"
     end
 <<<<<<< HEAD
+<<<<<<< HEAD
 
     -- 4. Проверка направления
     if nav and nav.getFacing() ~= HOME_FACING then
         return false, "WRONG_FACING"
     end
 
+=======
+>>>>>>> parent of 5b7495b (Fixes and filling)
 =======
 >>>>>>> parent of 5b7495b (Fixes and filling)
     return true
@@ -368,6 +371,7 @@ local function placeDoubleCrop()
 end
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 -- БЛОК 6.2: УНИВЕРСАЛЬНАЯ ОЧИСТКА ЛИШНИХ ЖЕРДОЧЕК
 local function dropExcessSticks()
     -- 1. Собираем слоты, где лежат палки (кроме слота 1)
@@ -410,6 +414,12 @@ local function dropCargo()
     for slot = 3, robot.inventorySize() do
         if robot.count(slot) > 0 then robot.select(slot); robot.dropDown() end
 >>>>>>> parent of 5b7495b (Fixes and filling)
+=======
+local function dropCargo()
+    walk(0, -1)
+    for slot = 3, robot.inventorySize() do
+        if robot.count(slot) > 0 then robot.select(slot); robot.dropDown() end
+>>>>>>> parent of 5b7495b (Fixes and filling)
     end
     robot.select(1)
     goHome()
@@ -421,9 +431,12 @@ local function refillSticks()
     robot.suckDown(64 - robot.count(1))
     
 <<<<<<< HEAD
+<<<<<<< HEAD
     -- Вызываем универсальную очистку лишних палок
     dropExcessSticks()
 =======
+=======
+>>>>>>> parent of 5b7495b (Fixes and filling)
     -- Чистим лишние жердочки из слотов 3..N обратно в сундук
     local extra = false
     for slot = 3, robot.inventorySize() do
@@ -438,6 +451,9 @@ local function refillSticks()
     
     robot.select(1)
     goHome()
+<<<<<<< HEAD
+>>>>>>> parent of 5b7495b (Fixes and filling)
+=======
 >>>>>>> parent of 5b7495b (Fixes and filling)
 end
 
