@@ -117,19 +117,23 @@ function tasks.getTask(state, CONFIG)
                     if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
                 end
                 if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
-                    -- Ищем самого слабого родителя (пустые = score -1)
+                    -- Ищем самого слабого родителя, НО только если он не target
                     local worst_score = 9999
                     local target = nil
                     for pk, st in pairs(state.cell_status) do
                         if st == 1 and not state.locked[pk] then
                             local pd = state.scan_data[pk]
-                            local score = -1
-                            if pd and pd.id == CONFIG.crop_id then
-                                score = (pd.g or 0) + (pd.ga or 0) + (pd.r or 0)
-                            end
-                            if score < worst_score then 
-                                worst_score = score
-                                target = pk 
+                            -- Пропускаем идеальных родителей!
+                            local is_ideal = pd and pd.id == CONFIG.crop_id and pd.g >= CONFIG.target.g and pd.ga >= CONFIG.target.ga and pd.r >= CONFIG.target.r
+                            if not is_ideal then
+                                local score = -1
+                                if pd and pd.id == CONFIG.crop_id then
+                                    score = (pd.g or 0) + (pd.ga or 0) + (pd.r or 0)
+                                end
+                                if score < worst_score then 
+                                    worst_score = score
+                                    target = pk 
+                                end
                             end
                         end
                     end

@@ -88,18 +88,22 @@ local function mainLoop()
         -- 1. Сеть
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, id, arg1, arg2, arg3 = table.unpack(ev)
-            state.busy_uptime = computer.uptime()
-
+            
             if msg == "READY" then
                 state.robot_ready = true
-                state.busy = false
-                state.current_task = nil
-                state.locked = {} 
+                state.emergency_notified = false
+                -- Если задача была выдана, но робот ее не взял (нет TAKEN) - сбрасываем
+                if state.current_task and not state.current_task.taken then
+                    state.busy = false
+                    state.current_task = nil
+                    state.locked = {}
+                elseif not state.current_task then
+                    state.busy = false
+                end
                 if state.phase == "EMERGENCY" then
                     state.phase = "INIT"
                     ui.logChat("S", "EMERGENCY OFF")
                 end
-                state.emergency_notified = false
                 need_render = true
                 
             elseif msg == "NOT_READY" then
@@ -113,14 +117,17 @@ local function mainLoop()
                     state.emergency_notified = true
                 end
                 need_render = true
-            
-            elseif msg == "ALIVE" then
-                state.busy_uptime = computer.uptime()-- Робот жив, сбрасываем таймер таймаута
+                
             elseif msg == "TAKEN" then
                 if state.current_task and state.current_task.id == id then
                     state.current_task.taken = true
-                    state.busy_uptime = computer.uptime() -- обновляем таймер
-                    -- Можно не рендерить, это служебное
+                    state.busy_uptime = computer.uptime()
+                end
+                
+            elseif msg == "ALIVE" then
+                -- Обновляем таймер только если задача реально выполняется
+                if state.current_task and state.current_task.taken then
+                    state.busy_uptime = computer.uptime()
                 end
                 
             elseif msg == "ACK" then
@@ -172,7 +179,6 @@ local function mainLoop()
                     end
                     need_render = true
                 end
-                
             elseif msg == "ALERT" then
                 ui.logChat("R<", "ERROR: " .. tostring(arg1))
                 need_render = true

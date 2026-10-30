@@ -220,6 +220,10 @@ local function quickInventoryCheck()
     if hand ~= TOOLS.trowel then
         return false, "NO_TROWEL"
     end
+    -- Проверка направления
+    if nav and nav.getFacing() ~= HOME_FACING then
+        return false, "WRONG_FACING"
+    end
     return true
 end
 
@@ -333,9 +337,20 @@ local function placeDoubleCrop()
 end
 
 local function dropCargo()
+    -- 1. Сначала палки в сундук 2 (0, 1)
+    walk(0, 1)
+    for slot = 3, robot.inventorySize() do
+        local s = inv.getStackInInternalSlot(slot)
+        if s and s.name == TOOLS.stick then
+            robot.select(slot); robot.dropDown()
+        end
+    end
+    -- 2. Потом остальное в сундук 1 (0, -1)
     walk(0, -1)
     for slot = 3, robot.inventorySize() do
-        if robot.count(slot) > 0 then robot.select(slot); robot.dropDown() end
+        if robot.count(slot) > 0 then
+            robot.select(slot); robot.dropDown()
+        end
     end
     robot.select(1); goHome()
 end
@@ -344,22 +359,18 @@ local function refillSticks()
     walk(0, 1) -- к сундуку 2
     robot.select(1)
     robot.suckDown(64 - robot.count(1))
-    
-    -- Чистим лишние жердочки из слотов 3..N обратно в сундук
+    -- Чистим лишние жердочки обратно в сундук
     local extra = false
     for slot = 3, robot.inventorySize() do
         local s = inv.getStackInInternalSlot(slot)
         if s and s.name == TOOLS.stick then
-            robot.select(slot)
-            robot.dropDown()
-            extra = true
+            robot.select(slot); robot.dropDown(); extra = true
         end
     end
     if extra then os.sleep(0.5) end
-    
-    robot.select(1)
-    goHome()
+    robot.select(1); goHome()
 end
+
 
 -- БЛОК 6.5: ОЧИСТКА ИНВЕНТАРЯ ПЕРЕД PLANT_MULTI
 local function cleanupBeforePlantMulti()
@@ -475,8 +486,11 @@ local function processCommand(task_id, action, key, arg2)
     if not state.is_ready and action ~= "EMERGENCY_CLEAR" then 
         return 
     end
-    
+    -- Даем роботу шанс пополнить жёрдочки перед обломом
     if action ~= "EMERGENCY_CLEAR" then
+        if robot.count(1) < MIN_STICKS then
+            refillSticks()
+        end
         local inv_ok, reason = quickInventoryCheck()
         if not inv_ok then
             state.is_ready = false
