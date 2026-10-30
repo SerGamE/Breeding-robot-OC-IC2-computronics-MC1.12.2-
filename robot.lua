@@ -8,6 +8,7 @@ local computer      = require("computer")
 local term          = require("term")
 local serialization = require("serialization")
 local fs            = require("filesystem")
+local thread = require("thread")
 
 local inv  = component.inventory_controller
 local nav  = component.navigation
@@ -520,10 +521,13 @@ term.clear()
 setupTools()
 emergencyGoHome()
 
--- Фоновая задача для отправки ALIVE
-local alive_thread = coroutine.create(function()
+-- Фоновый поток: ALIVE + READY (если готов)
+thread.create(function()
     while true do
         modem.broadcast(PORT, "ALIVE")
+        if state.is_ready then
+            modem.broadcast(PORT, "READY")
+        end
         os.sleep(5)
     end
 end)
@@ -534,11 +538,6 @@ local last_diag_time = 0
 local last_quick_check = 0
 
 while true do
-    -- 0. Корутина ALIVE
-    if coroutine.status(alive_thread) ~= "dead" then
-        coroutine.resume(alive_thread)
-    end
-
     -- 1. Heartbeat
     if os.time() - last_heartbeat >= 5 then
         if state.is_ready then
