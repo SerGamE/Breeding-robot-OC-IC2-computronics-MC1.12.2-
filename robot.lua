@@ -1,5 +1,5 @@
 -- ==============================================================================
--- ROBOT: r.lua (Architecture 4.0 - Full Draft)
+-- ROBOT: r.lua (Architecture 4.0 - ALIVE + Fast Home)
 -- ==============================================================================
 local robot         = require("robot")
 local component     = require("component")
@@ -16,7 +16,7 @@ local modem = component.modem
 -- ==============================================================================
 -- БЛОК 1: КОНФИГ И ИНИЦИАЛИЗАЦИЯ (tools.lua)
 -- ==============================================================================
-local PORT = 109 -- Второй робот
+local PORT = 109
 local WAKE_MSG = "WAKE_UP_MAN"
 local WAYPOINT_LABEL = "CHICHI"
 local HOME_FACING = 3 -- 3 = глобальный Юг
@@ -45,7 +45,6 @@ local function setupTools()
         end
     end
     
-    -- Настройка
     term.clear()
     print("=== НАСТРОЙКА ИНСТРУМЕНТОВ ===")
     print("Положите в СЛОТ 1: Жердочки")
@@ -107,7 +106,8 @@ local function faceDir(target_dir)
     end
 end
 
-local function goHome()
+-- Экстренный возврат (для амнезии/потери координат)
+local function emergencyGoHome()
     if not nav then return end
     local dx, dz = getPos()
     if not dx then return end
@@ -145,23 +145,40 @@ end
 
 local function walk(x, z)
     if x > 20 or z > 20 or x < -2 or z < -2 then 
-        error("Out of bounds!") 
+        emergencyGoHome()
+        return
     end
+    
+    local success = true
     if x > state.cur_x then 
-        turn(0); for _ = 1, x - state.cur_x do robot.forward() end
+        turn(0); for _ = 1, x - state.cur_x do if not robot.forward() then success = false break end end
     elseif x < state.cur_x then 
-        turn(2); for _ = 1, state.cur_x - x do robot.forward() end 
+        turn(2); for _ = 1, state.cur_x - x do if not robot.forward() then success = false break end end 
     end
-    if z > state.cur_z then 
-        turn(1); for _ = 1, z - state.cur_z do robot.forward() end
-    elseif z < state.cur_z then 
-        turn(3); for _ = 1, state.cur_z - z do robot.forward() end 
+    if success and z > state.cur_z then 
+        turn(1); for _ = 1, z - state.cur_z do if not robot.forward() then success = false break end end
+    elseif success and z < state.cur_z then 
+        turn(3); for _ = 1, state.cur_z - z do if not robot.forward() then success = false break end end 
     end
-    state.cur_x, state.cur_z = x, z
+    
+    if not success then
+        emergencyGoHome() -- Если врезались, сбрасываем координаты и едем через навигацию
+    else
+        state.cur_x, state.cur_z = x, z
+    end
+end
+
+-- Штатный возврат (быстрый)
+local function goHome()
+    if state.cur_x and state.cur_z then
+        walk(0, 0)
+    else
+        emergencyGoHome()
+    end
 end
 
 -- ==============================================================================
--- БЛОК 4: ИНВЕНТАРЬ (getStackInHand)
+-- БЛОК 4: ИНВЕНТАРЬ
 -- ==============================================================================
 local function getStackInHand()
     local empty_slot = nil
@@ -188,34 +205,29 @@ local function getStackInHand()
     return item and item.name or nil
 end
 
--- ==============================================================================
 -- БЛОК 4.5: БЫСТРАЯ ПРОВЕРКА ИНВЕНТАРЯ
--- ==============================================================================
 local function quickInventoryCheck()
     local s1 = inv.getStackInInternalSlot(1)
     if not s1 or s1.name ~= TOOLS.stick or robot.count(1) < MIN_STICKS then
         return false, "NO_STICKS"
     end
-    
     local s2 = inv.getStackInInternalSlot(2)
     if not s2 or s2.name ~= TOOLS.weapon then
         return false, "NO_WEAPON"
     end
-    
     local hand = getStackInHand()
     if hand ~= TOOLS.trowel then
         return false, "NO_TROWEL"
     end
-    
     return true
 end
+
 -- ==============================================================================
--- БЛОК 5: САМОДИАГНОСТИКА (selfDiagnosis) - СТРОГО ПО АЛГОРИТМУ
+-- БЛОК 5: САМОДИАГНОСТИКА (selfDiagnosis)
 -- ==============================================================================
 local function selfDiagnosis()
-    goHome()
+    emergencyGoHome()
 
-    -- 1. Проверка руки
     local hand = getStackInHand()
     if hand ~= TOOLS.trowel then
         local found = false
@@ -230,27 +242,24 @@ local function selfDiagnosis()
         if not found then return false, "NO_TROWEL" end
     end
 
-    -- 2. Очистка Слота 1
     local s1 = inv.getStackInInternalSlot(1)
     if s1 and s1.name ~= TOOLS.stick then
         if s1.name == TOOLS.weapon then
-            robot.transferTo(2) -- Оружие во 2-й
+            robot.transferTo(2)
         else
             robot.select(1); robot.drop()
         end
     end
 
-    -- 3. Очистка Слота 2
     local s2 = inv.getStackInInternalSlot(2)
     if s2 and s2.name ~= TOOLS.weapon then
         if s2.name == TOOLS.stick then
-            robot.transferTo(1) -- Жердочки в 1-й
+            robot.transferTo(1)
         else
             robot.select(2); robot.drop()
         end
     end
 
-    -- 4. Поиск жердочек (если мало)
     if robot.count(1) < MIN_STICKS then
         local my_sticks_slots = {}
         for i = 3, robot.inventorySize() do
@@ -277,7 +286,6 @@ local function selfDiagnosis()
         end
     end
 
-    -- 5. Поиск оружия (если нет)
     local s2_new = inv.getStackInInternalSlot(2)
     if not s2_new or s2_new.name ~= TOOLS.weapon then
         local found_weapon = false
@@ -292,7 +300,6 @@ local function selfDiagnosis()
         if not found_weapon then return false, "NO_WEAPON" end
     end
 
-    -- 6. Финальная проверка
     local final_s1 = inv.getStackInInternalSlot(1)
     local final_s2 = inv.getStackInInternalSlot(2)
     local final_hand = getStackInHand()
@@ -301,7 +308,6 @@ local function selfDiagnosis()
     if not final_s2 or final_s2.name ~= TOOLS.weapon then return false, "WEAPON_ERROR" end
     if final_hand ~= TOOLS.trowel then return false, "TROWEL_ERROR" end
 
-    -- 7. Очистка 3..N
     walk(0, -1)
     for slot = 3, robot.inventorySize() do
         if robot.count(slot) > 0 then
@@ -315,7 +321,7 @@ local function selfDiagnosis()
 end
 
 -- ==============================================================================
--- БЛОК 6: ДЕЙСТВИЯ (Инструменты и DBL)
+-- БЛОК 6: ДЕЙСТВИЯ
 -- ==============================================================================
 local function swingAxe()
     robot.select(2); inv.equip(); robot.swingDown(); inv.equip(); robot.select(1)
@@ -337,6 +343,7 @@ local function refillSticks()
     walk(0, 1) -- к сундуку 2
     robot.select(1)
     robot.suckDown(64 - robot.count(1))
+    
     -- Чистим лишние жердочки из слотов 3..N обратно в сундук
     local extra = false
     for slot = 3, robot.inventorySize() do
@@ -347,15 +354,14 @@ local function refillSticks()
             extra = true
         end
     end
-    if extra then os.sleep(0.5) end -- даем время на дроп
+    if extra then os.sleep(0.5) end
+    
     robot.select(1)
     goHome()
 end
--- ==============================================================================
+
 -- БЛОК 6.5: ОЧИСТКА ИНВЕНТАРЯ ПЕРЕД PLANT_MULTI
--- ==============================================================================
 local function cleanupBeforePlantMulti()
-    -- 1. Оставить только MIN_STICKS в слоте 1, остальное в сундук (0, 1)
     local total = robot.count(1)
     if total > MIN_STICKS then
         walk(0, 1)
@@ -365,7 +371,6 @@ local function cleanupBeforePlantMulti()
         goHome()
     end
     
-    -- 2. Всё из слотов 3..N в сундук (0, -1)
     walk(0, -1)
     for slot = FIRST_CARGO_SLOT, robot.inventorySize() do
         if robot.count(slot) > 0 then
@@ -376,8 +381,9 @@ local function cleanupBeforePlantMulti()
     robot.select(1)
     goHome()
 end
+
 -- ==============================================================================
--- БЛОК 7: ОБРАБОТКА ЗАДАЧ (Task Handlers)
+-- БЛОК 7: ОБРАБОТКА ЗАДАЧ
 -- ==============================================================================
 local function taskPlaceDouble(task_id, key)
     local x, z = key:match("(%d+),(%d+)")
@@ -417,7 +423,6 @@ local function taskEmergencyClear(task_id, key)
 end
 
 local function taskReplaceTry(task_id, cross_key, weak_key)
-    -- 1. Собираем пустые слоты ДО сноса
     local my_empty_slots = {}
     for slot = 3, robot.inventorySize() do
         if inv.getStackInInternalSlot(slot) == nil then
@@ -425,12 +430,11 @@ local function taskReplaceTry(task_id, cross_key, weak_key)
         end
     end
     
-    -- 2. Идём на крест, сносим
     local cx, cz = cross_key:match("(%d+),(%d+)")
+    if robot.count(3) > 0 then dropCargo() end
     walk(tonumber(cx), tonumber(cz))
     swingAxe(); os.sleep(1.5)
     
-    -- 3. Сканируем my_empty_slots на семена
     state.my_best_seeds = {}
     for _, slot in ipairs(my_empty_slots) do
         local s = inv.getStackInInternalSlot(slot)
@@ -439,13 +443,9 @@ local function taskReplaceTry(task_id, cross_key, weak_key)
         end
     end
     
-    -- 4. Ставим DBL
     placeDoubleCrop()
-    
-    -- 5. Шлём результат
     modem.broadcast(PORT, "REPLACE_RESULT", task_id, cross_key, weak_key, #state.my_best_seeds)
     
-    -- 6. Если 0 семян — на базу скидывать хлам
     if #state.my_best_seeds == 0 then dropCargo() end
 end
 
@@ -466,30 +466,34 @@ local function taskPlantMulti(task_id, coords_str)
 end
 
 -- ==============================================================================
--- БЛОК 8: ПРОТОКОЛ И ОСНОВНОЙ ЦИКЛ
+-- БЛОК 8: ПРОТОКОЛ
 -- ==============================================================================
 local function processCommand(task_id, action, key, arg2)
     if state.last_completed_task_id == task_id then return end
     
-    if not state.is_ready and action ~= "EMERGENCY_CLEAR" then return end
+    if not state.is_ready and action ~= "EMERGENCY_CLEAR" then 
+        return 
+    end
     
     if action ~= "EMERGENCY_CLEAR" then
         local inv_ok, reason = quickInventoryCheck()
         if not inv_ok then
             state.is_ready = false
+            state.is_emergency = true
             modem.broadcast(PORT, "NOT_READY")
+            term.clear()
+            print("PRE-TASK FAIL: " .. reason)
             return
         end
     end
     
-    -- ШЛЕМ TAKEN
+    -- СРАЗУ ШЛЕМ TAKEN
     modem.broadcast(PORT, "TAKEN", task_id)
     
     if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
         cleanupBeforePlantMulti()
     end
     
-    -- ... дальше pcall выполнение задач как было ...
     local success, err = pcall(function()
         if action == "PLACE_DOUBLE" then taskPlaceDouble(task_id, key)
         elseif action == "DESTROY" then taskDestroy(task_id, key)
@@ -514,13 +518,27 @@ end
 -- ==============================================================================
 term.clear()
 setupTools()
-goHome()
+emergencyGoHome()
+
+-- Фоновая задача для отправки ALIVE
+local alive_thread = coroutine.create(function()
+    while true do
+        modem.broadcast(PORT, "ALIVE")
+        os.sleep(5)
+    end
+end)
 
 local last_heartbeat = 0
 local last_ack_spam = 0
 local last_diag_time = 0
+local last_quick_check = 0
 
 while true do
+    -- 0. Корутина ALIVE
+    if coroutine.status(alive_thread) ~= "dead" then
+        coroutine.resume(alive_thread)
+    end
+
     -- 1. Heartbeat
     if os.time() - last_heartbeat >= 5 then
         if state.is_ready then
@@ -531,7 +549,7 @@ while true do
         last_heartbeat = os.time()
     end
 
-    -- 2. Самодиагностика (если не готов)
+    -- 2. Диагностика
     if not state.is_ready then
         if os.time() - last_diag_time > 5 then
             local ok, reason = selfDiagnosis()
@@ -549,6 +567,18 @@ while true do
             end
             last_diag_time = os.time()
         end
+    else
+        if os.time() - last_quick_check > 10 then
+            local inv_ok, reason = quickInventoryCheck()
+            if not inv_ok then
+                state.is_ready = false
+                state.is_emergency = true
+                modem.broadcast(PORT, "NOT_READY")
+                term.clear()
+                print("IDLE CHECK FAIL: " .. reason)
+            end
+            last_quick_check = os.time()
+        end
     end
 
     -- 3. Прием команд
@@ -561,7 +591,7 @@ while true do
         end
     end
 
-    -- 4. Спам ACK
+    -- 4. ACK спам
     if state.pending_ack then
         if os.time() - last_ack_spam >= 2 then
             modem.broadcast(PORT, "ACK", state.pending_ack.id, state.pending_ack.key)
