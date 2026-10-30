@@ -109,7 +109,6 @@ function ui.render(state, CONFIG, force)
             if not old_d or not new_d then need = true
             elseif new_d.id ~= old_d.id or new_d.stats ~= old_d.stats or new_d.stage ~= old_d.stage or new_d.gp ~= old_d.gp then need = true end
             if (state.status_line[key] or "") ~= (old_stat[key] or "") then need = true end
-            if old_stat[key] ~= nil and state.status_line[key] == nil then need = true end --чистка
             if state.cell_status[key] ~= old_scan["_st_"..key] then need = true end
             if need then
                 drawCell(state, key, px, py, cell_w, cell_h)
