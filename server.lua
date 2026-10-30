@@ -113,7 +113,9 @@ local function mainLoop()
                     state.emergency_notified = true
                 end
                 need_render = true
-                
+            
+            elseif msg == "ALIVE" then
+                state.busy_uptime = computer.uptime()-- Робот жив, сбрасываем таймер таймаута
             elseif msg == "TAKEN" then
                 if state.current_task and state.current_task.id == id then
                     state.current_task.taken = true
@@ -180,7 +182,7 @@ local function mainLoop()
         -- 2. Таймаут (10 сек на TAKEN, 30 сек на ACK)
         if state.busy and state.current_task then
             local delta = computer.uptime() - state.busy_uptime
-            local timeout = state.current_task.taken and 30 or 10
+            local timeout = state.current_task.taken and 40 or 10
             if delta > timeout then
                 ui.logChat("S", "Таймаут! Бужу робота.")
                 wakeRobot()
