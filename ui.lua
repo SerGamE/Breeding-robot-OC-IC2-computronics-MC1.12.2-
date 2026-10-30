@@ -65,11 +65,19 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
     gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 2, (data.stage or "0/7"):sub(1, cell_w - 2))
     gpu.setForeground(0xAA55FF); gpu.set(px + 1, py + 3, ("GP:"..(data.gp or "0")):sub(1, cell_w - 2))
     if stat ~= "" then
-        if stat:match("WEAK") or stat:match("EXCESS") or stat:match("NEW") or stat:match("REPLACE") or stat:match("CLEAR") or stat:match("WEED") then gpu.setForeground(0xFF5555)
-        elseif stat:match("DBL") then gpu.setForeground(0x55FFFF)
-        elseif stat:match("GROW") then gpu.setForeground(0xFFFF55)
-        else gpu.setForeground(0xFFFFFF) end
+        if stat:match("WEAK") or stat:match("EXCESS") or stat:match("NEW") or stat:match("REPLACE") or stat:match("CLEAR") or stat:match("WEED") then 
+            gpu.setForeground(0xFF5555)
+        elseif stat:match("DBL") then 
+            gpu.setForeground(0x55FFFF)
+        elseif stat:match("GROW") then 
+            gpu.setForeground(0xFFFF55)
+        else 
+            gpu.setForeground(0xFFFFFF) 
+        end
+        gpu.set(px + 1, py + 4, string.rep(" ", cell_w - 2))
         gpu.set(px + 1, py + 4, stat:sub(1, cell_w - 2))
+    else
+        gpu.set(px + 1, py + 4, string.rep(" ", cell_w - 2))
     end
 end
 

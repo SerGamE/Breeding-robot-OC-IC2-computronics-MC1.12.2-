@@ -57,7 +57,7 @@ local function mainLoop()
     
     local ok, p_count, c_count, t_count = map_manager.load(state)
     if not ok then
-        ui.logChat("S", "Ошибка: карта не найдена! Запустите mapping.lua")
+        ui.logChat("S", "Ошибка: карта не найдена!")
         return
     end
     ui.logChat("S", "Загружено: " .. p_count .. " род, " .. c_count .. " кр, " .. t_count .. " тех.")
@@ -79,18 +79,15 @@ local function mainLoop()
     wakeRobot()
     ui.logChat("S", "Отправлен WAKE_UP роботу")
 
-    local last_scan = 0
-    local last_full_scan = 0
-    local last_phase_check = 0
+    local last_scan, last_full_scan, last_phase_check = 0, 0, 0
 
     while true do
         local ev = table.pack(event.pull(0.1, "modem_message"))
         local need_render = false
 
-        -- 1. Обработка сети
+        -- 1. Сеть
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, id, arg1, arg2, arg3 = table.unpack(ev)
-            
             state.busy_uptime = computer.uptime()
 
             if msg == "READY" then
@@ -100,7 +97,7 @@ local function mainLoop()
                 state.locked = {} 
                 if state.phase == "EMERGENCY" then
                     state.phase = "INIT"
-                    ui.logChat("S", "EMERGENCY OFF (робот починился)")
+                    ui.logChat("S", "EMERGENCY OFF")
                 end
                 state.emergency_notified = false
                 need_render = true
@@ -112,10 +109,17 @@ local function mainLoop()
                 state.locked = {} 
                 state.phase = "EMERGENCY"
                 if not state.emergency_notified then
-                    ui.logChat("R<", "АВАРИЯ! Робот требует ремонта.")
+                    ui.logChat("R<", "АВАРИЯ!")
                     state.emergency_notified = true
                 end
                 need_render = true
+                
+            elseif msg == "TAKEN" then
+                if state.current_task and state.current_task.id == id then
+                    state.current_task.taken = true
+                    state.busy_uptime = computer.uptime() -- обновляем таймер
+                    -- Можно не рендерить, это служебное
+                end
                 
             elseif msg == "ACK" then
                 if state.current_task and state.current_task.id == id then
@@ -125,6 +129,7 @@ local function mainLoop()
                     setStatus(arg1, nil)
                     need_render = true
                 end
+                
             elseif msg == "REPLACE_RESULT" then
                 if state.current_task and state.current_task.id == id then
                     state.busy = false
@@ -135,7 +140,6 @@ local function mainLoop()
                     
                     local seeds_count = tonumber(arg3) or 0
                     if seeds_count > 0 then
-                        -- 1. Собираем ВСЕХ родителей и сортируем по слабости
                         local candidates = {}
                         for pk, st in pairs(state.cell_status) do
                             if st == 1 and not state.locked[pk] then
@@ -147,7 +151,6 @@ local function mainLoop()
                                 table.insert(candidates, {key=pk, score=score})
                             end
                         end
-                        
                         table.sort(candidates, function(a,b) return a.score < b.score end)
                         
                         local targets = {}
@@ -159,60 +162,63 @@ local function mainLoop()
                             state.task_counter = state.task_counter + 1
                             state.busy = true
                             state.busy_uptime = computer.uptime()
-                            state.current_task = { id = state.task_counter, key = arg1, action = "PLANT_MULTI" }
+                            state.current_task = { id = state.task_counter, key = arg1, action = "PLANT_MULTI", taken = false }
                             local coords = serialization.serialize(targets)
                             modem.broadcast(CONFIG.port, "CMD", state.task_counter, "PLANT_MULTI", coords)
-                            ui.logChat("S>", string.format("PLANT_MULTI #%d -> %d slots", state.task_counter, #targets))
+                            ui.logChat("S>", string.format("PLANT_MULTI #%d -> %d", state.task_counter, #targets))
                         end
                     end
                     need_render = true
                 end
+                
             elseif msg == "ALERT" then
                 ui.logChat("R<", "ERROR: " .. tostring(arg1))
                 need_render = true
             end
         end
 
-        -- 2. Таймаут ожидания робота
-        if state.busy and (computer.uptime() - state.busy_uptime > CONFIG.answer_timeout) then
-            if computer.uptime() - state.last_wake_uptime > 10 then
-                ui.logChat("S", "Таймаут задачи. Бужу робота.")
+        -- 2. Таймаут (10 сек на TAKEN, 30 сек на ACK)
+        if state.busy and state.current_task then
+            local delta = computer.uptime() - state.busy_uptime
+            local timeout = state.current_task.taken and 30 or 10
+            if delta > timeout then
+                ui.logChat("S", "Таймаут! Бужу робота.")
                 wakeRobot()
-                state.locked = {}
+                state.busy = false
                 state.current_task = nil
+                state.locked = {}
+                need_render = true
             end
         end
 
-        -- 3. Сканирование (быстрый каждые 0.2 сек, полный раз в 3 сек)
+        -- 3. Скан (быстрый 0.2, полный 3)
         if computer.uptime() - last_scan >= 0.2 then
-            local full = (computer.uptime() - last_full_scan >= 2)
+            local full = (computer.uptime() - last_full_scan >= 3)
             scanner.scan(state, CONFIG, CROP_DB, full)
             if full then last_full_scan = computer.uptime() end
             last_scan = computer.uptime()
             need_render = true
         end
 
-        -- 4. Проверка фаз (раз в 5 сек, кроме EMERGENCY)
+        -- 4. Фазы (5 сек)
         if computer.uptime() - last_phase_check >= 5 then
             if state.phase ~= "EMERGENCY" then
                 local phase_msg = logic.checkPhase(state, CONFIG)
-                if phase_msg then
-                    ui.logChat("S", "Phase -> " .. phase_msg)
-                end
+                if phase_msg then ui.logChat("S", "Phase -> " .. phase_msg) end
             end
             last_phase_check = computer.uptime()
             need_render = true
         end
 
-        -- 5. Выдача задач
+        -- 5. Выдача задач (ТОЛЬКО ЕСЛИ НЕ BUSY)
         local can_work = state.robot_ready or (state.phase == "EMERGENCY")
         if can_work and not state.busy then
-            local action, key, display_status = tasks.getTask(state, CONFIG)           
+            local action, key, display_status = tasks.getTask(state, CONFIG)
             if action then
                 state.task_counter = state.task_counter + 1
                 state.busy = true
                 state.busy_uptime = computer.uptime()
-                state.current_task = { id = state.task_counter, key = key, action = action }
+                state.current_task = { id = state.task_counter, key = key, action = action, taken = false }
                 state.locked[key] = true
 
                 setStatus(key, display_status)
@@ -227,10 +233,7 @@ local function mainLoop()
             end
         end
 
-        -- 6. Отрисовка
-        if need_render then 
-            ui.render(state, CONFIG, false) 
-        end
+        if need_render then ui.render(state, CONFIG, false) end
     end
 end
 

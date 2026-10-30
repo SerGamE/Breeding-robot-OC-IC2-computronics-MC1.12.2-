@@ -9,4 +9,8 @@ return {
     wake_message = "WAKE_UP_MAN",
     port = 109,
     min_dead_parents = 4
+    chest_drop = { x = 0, z = -1 },  -- Сундук 1 (сброс)
+    chest_sticks = { x = 0, z = 1 }, -- Сундук 2 (жердочки)
+    chest_new = { x = 0, z = 2 },    -- Сундук 3 (новые виды)для режима MUTATION
+    chest_top = { x = 0, z = 3 },    -- Сундук 4 (топ семена)для режима MUTATION
 }

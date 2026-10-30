@@ -334,9 +334,21 @@ local function dropCargo()
 end
 
 local function refillSticks()
-    walk(0, 1)
+    walk(0, 1) -- к сундуку 2
     robot.select(1)
     robot.suckDown(64 - robot.count(1))
+    -- Чистим лишние жердочки из слотов 3..N обратно в сундук
+    local extra = false
+    for slot = 3, robot.inventorySize() do
+        local s = inv.getStackInInternalSlot(slot)
+        if s and s.name == TOOLS.stick then
+            robot.select(slot)
+            robot.dropDown()
+            extra = true
+        end
+    end
+    if extra then os.sleep(0.5) end -- даем время на дроп
+    robot.select(1)
     goHome()
 end
 -- ==============================================================================
@@ -459,28 +471,25 @@ end
 local function processCommand(task_id, action, key, arg2)
     if state.last_completed_task_id == task_id then return end
     
-    if not state.is_ready and action ~= "EMERGENCY_CLEAR" then 
-        return 
-    end
+    if not state.is_ready and action ~= "EMERGENCY_CLEAR" then return end
     
-    -- ПРОВЕРКА ИНВЕНТАРЯ ПЕРЕД ЛЮБОЙ ЗАДАЧЕЙ, КРОМЕ EMERGENCY_CLEAR
     if action ~= "EMERGENCY_CLEAR" then
         local inv_ok, reason = quickInventoryCheck()
         if not inv_ok then
             state.is_ready = false
-            state.is_emergency = true
             modem.broadcast(PORT, "NOT_READY")
-            term.clear()
-            print("PRE-TASK FAIL: " .. reason)
             return
         end
     end
     
-    -- Для PLANT_MULTI / REPLACE_TRY — очистка инвентаря
+    -- ШЛЕМ TAKEN
+    modem.broadcast(PORT, "TAKEN", task_id)
+    
     if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
         cleanupBeforePlantMulti()
     end
     
+    -- ... дальше pcall выполнение задач как было ...
     local success, err = pcall(function()
         if action == "PLACE_DOUBLE" then taskPlaceDouble(task_id, key)
         elseif action == "DESTROY" then taskDestroy(task_id, key)

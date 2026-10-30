@@ -104,7 +104,12 @@ function logic.checkPhase(state, CONFIG)
 end
 
 function logic.classify(c, parents, CONFIG)
-    -- Проверка на превышение лимитов
+    -- Если достиг target — идеален, не WEAK
+    if c.g >= CONFIG.target.g and c.ga >= CONFIG.target.ga and c.r >= CONFIG.target.r then 
+        return "CANDIDATE" 
+    end
+    
+    -- Проверка на превышение лимитов (EXCESS)
     if c.g > CONFIG.target.g or c.ga > CONFIG.target.ga or c.r > CONFIG.target.r then 
         return "EXCESS" 
     end
@@ -112,11 +117,9 @@ function logic.classify(c, parents, CONFIG)
     local weaker = true
     local better = false
     for _, p in ipairs(parents) do
-        -- Ребенок лучше хотя бы одного родителя
         if (c.g >= p.g and c.ga >= p.ga and c.r >= p.r) and (c.g > p.g or c.ga > p.ga or c.r > p.r) then 
             better = true 
         end
-        -- Ребенок не слабее этого родителя
         if c.g >= p.g and c.ga >= p.ga and c.r >= p.r then 
             weaker = false 
         end
