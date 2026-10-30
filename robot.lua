@@ -240,7 +240,7 @@ end
 -- ==============================================================================
 local function selfDiagnosis()
     emergencyGoHome()
-    -- На всякий случай принудительно встаем на HOME_FACING
+    -- Принудительно встаем на HOME_FACING
     if nav then
         while nav.getFacing() ~= HOME_FACING do
             robot.turnRight()
@@ -340,7 +340,7 @@ local function selfDiagnosis()
 end
 
 -- ==============================================================================
--- БЛОК 6: ДЕЙСТВИЯ
+-- БЛОК 6: ДЕЙСТВИЯ (Инструменты и DBL)
 -- ==============================================================================
 local function swingAxe()
     robot.select(2); inv.equip(); robot.swingDown(); inv.equip(); robot.select(1)
@@ -350,9 +350,7 @@ local function placeDoubleCrop()
     robot.select(1); inv.equip(); robot.useDown(); robot.useDown(); inv.equip(); robot.select(1)
 end
 
--- ==============================================================================
--- БЛОК 6.2: ОЧИСТКА ЛИШНИХ ЖЕРДОЧЕК (Универсальная)
--- ==============================================================================
+-- БЛОК 6.2: УНИВЕРСАЛЬНАЯ ОЧИСТКА ЛИШНИХ ЖЕРДОЧЕК
 local function dropExcessSticks()
     -- 1. Собираем слоты, где лежат палки (кроме слота 1)
     local stick_slots = {}
@@ -377,18 +375,8 @@ local function dropExcessSticks()
     goHome()
 end
 
-llocal function refillSticks()
-    walk(0, 1) -- к сундуку 2
-    robot.select(1)
-    robot.suckDown(64 - robot.count(1))
-    
-    -- Вызываем универсальную очистку лишних палок
-    dropExcessSticks()
-end
-
 local function dropCargo()
-    -- 1. Сначала чистим палки (если они есть) через универсальную функцию
-    -- (dropExcessSticks сама вернет робота на базу в конце)
+    -- 1. Сначала чистим палки через универсальную функцию
     dropExcessSticks()
     
     -- 2. Потом остальное в сундук 1 (0, -1)
@@ -401,6 +389,15 @@ local function dropCargo()
     end
     robot.select(1)
     goHome()
+end
+
+local function refillSticks()
+    walk(0, 1) -- к сундуку 2
+    robot.select(1)
+    robot.suckDown(64 - robot.count(1))
+    
+    -- Вызываем универсальную очистку лишних палок
+    dropExcessSticks()
 end
 
 -- БЛОК 6.5: ОЧИСТКА ИНВЕНТАРЯ ПЕРЕД PLANT_MULTI
@@ -426,7 +423,7 @@ local function cleanupBeforePlantMulti()
 end
 
 -- ==============================================================================
--- БЛОК 7: ОБРАБОТКА ЗАДАЧ
+-- БЛОК 7: ОБРАБОТКА ЗАДАЧ (Task Handlers)
 -- ==============================================================================
 local function taskPlaceDouble(task_id, key)
     local x, z = key:match("(%d+),(%d+)")
