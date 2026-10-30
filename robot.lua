@@ -173,6 +173,11 @@ end
 local function goHome()
     if state.cur_x and state.cur_z then
         walk(0, 0)
+        -- Принудительно разворачиваем на HOME_FACING (3)
+        while nav and nav.getFacing() ~= HOME_FACING do
+            robot.turnRight()
+            state.cur_dir = (state.cur_dir + 1) % 4
+        end
     else
         emergencyGoHome()
     end
@@ -220,10 +225,13 @@ local function quickInventoryCheck()
     if hand ~= TOOLS.trowel then
         return false, "NO_TROWEL"
     end
-    -- Проверка направления
+    -- Проверка направления (попытка исправить)
     if nav and nav.getFacing() ~= HOME_FACING then
-        return false, "WRONG_FACING"
-    end
+        while nav.getFacing() ~= HOME_FACING do
+            robot.turnRight()
+            state.cur_dir = (state.cur_dir + 1) % 4
+        end
+    end 
     return true
 end
 
@@ -232,7 +240,13 @@ end
 -- ==============================================================================
 local function selfDiagnosis()
     emergencyGoHome()
-
+    -- На всякий случай принудительно встаем на HOME_FACING
+    if nav then
+        while nav.getFacing() ~= HOME_FACING do
+            robot.turnRight()
+        end
+    end
+    
     local hand = getStackInHand()
     if hand ~= TOOLS.trowel then
         local found = false
