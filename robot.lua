@@ -213,25 +213,39 @@ end
 
 -- БЛОК 4.5: БЫСТРАЯ ПРОВЕРКА ИНВЕНТАРЯ
 local function quickInventoryCheck()
+    -- 1. Проверка палок
     local s1 = inv.getStackInInternalSlot(1)
     if not s1 or s1.name ~= TOOLS.stick or robot.count(1) < MIN_STICKS then
         return false, "NO_STICKS"
     end
+
+    -- 2. Проверка оружия (если в слоте 2 нет — ищем где-то еще и перекладываем)
     local s2 = inv.getStackInInternalSlot(2)
     if not s2 or s2.name ~= TOOLS.weapon then
-        return false, "NO_WEAPON"
+        local found = false
+        for slot = 3, robot.inventorySize() do
+            local s = inv.getStackInInternalSlot(slot)
+            if s and s.name == TOOLS.weapon then
+                robot.select(slot)
+                robot.transferTo(2)
+                found = true
+                break
+            end
+        end
+        if not found then return false, "NO_WEAPON" end
     end
+
+    -- 3. Проверка руки
     local hand = getStackInHand()
     if hand ~= TOOLS.trowel then
         return false, "NO_TROWEL"
     end
-    -- Проверка направления (попытка исправить)
+
+    -- 4. Проверка направления
     if nav and nav.getFacing() ~= HOME_FACING then
-        while nav.getFacing() ~= HOME_FACING do
-            robot.turnRight()
-            state.cur_dir = (state.cur_dir + 1) % 4
-        end
-    end 
+        return false, "WRONG_FACING"
+    end
+
     return true
 end
 
