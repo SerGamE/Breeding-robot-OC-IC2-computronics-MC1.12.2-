@@ -48,13 +48,11 @@ function tasks.getTask(state, CONFIG)
     
     if state.phase == "INIT" then return nil end
     
-    -- 5. MUTATION: Сбор семян новых видов
+    -- 5. MUTATION: Сбор семян новых видов (только если выросли до максимума)
     if state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
                 if d.sz >= d.max_stages then
-                    -- Сносим, чтобы собрать семена. Экшен DESTROY заставит робота срубить и поставить DBL.
-                    -- (Позже надо будет добавить сбор семян в отдельный сундук, пока просто снос).
                     return "DESTROY", k, "NEW_SEEDS"
                 end
             end
@@ -77,27 +75,28 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 7. УНИЧТОЖЕНИЕ (WEAK, EXCESS, NEW) в SELECTION
-    if state.phase == "SELECTION" then
+    -- 7. EXCESS (для всех крестов, включая новые виды)
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and not state.locked[k] then
-                if d.id ~= CONFIG.crop_id then
-                    if CONFIG.new_species == "destroy" then return "DESTROY", k, "NEW" end
-                else
-                    local parents = {}
-                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
-                    end
-                    local cls = logic.classify(d, parents, CONFIG)
-                    if cls == "EXCESS" then return "DESTROY", k, "EXCESS" end
-                    if cls == "WEAK" then return "DESTROY", k, "WEAK" end
+                if logic.isExcess(d, CONFIG) then
+                    return "DESTROY", k, "EXCESS"
                 end
             end
         end
     end
     
-    -- 8. MUTATION: снос WEAK у крестов с crop_id
-    if state.phase == "MUTATION" then
+    -- 8. NEW (снос любых новых видов в SELECTION)
+    if state.phase == "SELECTION" then
+        for k, d in pairs(state.scan_data) do
+            if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
+                if CONFIG.new_species == "destroy" then return "DESTROY", k, "NEW" end
+            end
+        end
+    end
+    
+    -- 9. WEAK (только для crop_id на крестах в SELECTION и MUTATION)
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and not state.locked[k] then
                 local parents = {}
@@ -109,7 +108,7 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 9. MultiPlant (пересадка топ-ребёнка)
+    -- 10. MultiPlant
     if state.phase == "SELECTION" or state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
@@ -118,18 +117,19 @@ function tasks.getTask(state, CONFIG)
                     if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
                 end
                 if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
+                    -- Ищем самого слабого родителя (пустые = score -1)
+                    local worst_score = 9999
                     local target = nil
-                    for pk, pd in pairs(state.scan_data) do
-                        if state.cell_status[pk] == 1 and not state.locked[pk] then
-                            if not pd or pd.id ~= CONFIG.crop_id then target = pk; break end
-                        end
-                    end
-                    if not target then
-                        local worst = 999
-                        for pk, pd in pairs(state.scan_data) do
-                            if state.cell_status[pk] == 1 and pd.id == CONFIG.crop_id and not state.locked[pk] then
-                                local score = pd.g + pd.ga + pd.r
-                                if score < worst then worst = score; target = pk end
+                    for pk, st in pairs(state.cell_status) do
+                        if st == 1 and not state.locked[pk] then
+                            local pd = state.scan_data[pk]
+                            local score = -1
+                            if pd and pd.id == CONFIG.crop_id then
+                                score = (pd.g or 0) + (pd.ga or 0) + (pd.r or 0)
+                            end
+                            if score < worst_score then 
+                                worst_score = score
+                                target = pk 
                             end
                         end
                     end
@@ -139,13 +139,11 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-        -- 10. УСТАНОВКА DBL
+    -- 11. УСТАНОВКА DBL
     if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
         for k, st in pairs(state.cell_status) do
             if st == 2 and not state.locked[k] then
                 local d = state.scan_data[k]
-                -- d == nil -> нет компонента (пустая клетка)
-                -- d.id == "" -> стоит пустая жердочка (одинарная или двойная)
                 if not d then
                     local mature = 0
                     for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do

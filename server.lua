@@ -135,28 +135,24 @@ local function mainLoop()
                     
                     local seeds_count = tonumber(arg3) or 0
                     if seeds_count > 0 then
-                        local targets = {}
-                        for pk, pd in pairs(state.scan_data) do
-                            if state.cell_status[pk] == 1 and not state.locked[pk] then
-                                if not pd or pd.id ~= CONFIG.crop_id then
-                                    table.insert(targets, pk)
-                                    if #targets >= seeds_count then break end
+                        -- 1. Собираем ВСЕХ родителей и сортируем по слабости
+                        local candidates = {}
+                        for pk, st in pairs(state.cell_status) do
+                            if st == 1 and not state.locked[pk] then
+                                local pd = state.scan_data[pk]
+                                local score = -1
+                                if pd and pd.id == CONFIG.crop_id then
+                                    score = (pd.g or 0) + (pd.ga or 0) + (pd.r or 0)
                                 end
+                                table.insert(candidates, {key=pk, score=score})
                             end
                         end
                         
-                        if #targets < seeds_count then
-                            local candidates = {}
-                            for pk, pd in pairs(state.scan_data) do
-                                if state.cell_status[pk] == 1 and pd.id == CONFIG.crop_id and not state.locked[pk] and pk ~= arg2 then
-                                    table.insert(candidates, {key=pk, score=pd.g+pd.ga+pd.r})
-                                end
-                            end
-                            table.sort(candidates, function(a,b) return a.score < b.score end)
-                            for _, c in ipairs(candidates) do
-                                table.insert(targets, c.key)
-                                if #targets >= seeds_count then break end
-                            end
+                        table.sort(candidates, function(a,b) return a.score < b.score end)
+                        
+                        local targets = {}
+                        for i = 1, math.min(seeds_count, #candidates) do
+                            table.insert(targets, candidates[i].key)
                         end
                         
                         if #targets > 0 then
@@ -189,7 +185,7 @@ local function mainLoop()
 
         -- 3. Сканирование (быстрый каждые 0.2 сек, полный раз в 3 сек)
         if computer.uptime() - last_scan >= 0.2 then
-            local full = (computer.uptime() - last_full_scan >= 3)
+            local full = (computer.uptime() - last_full_scan >= 2)
             scanner.scan(state, CONFIG, CROP_DB, full)
             if full then last_full_scan = computer.uptime() end
             last_scan = computer.uptime()
@@ -211,27 +207,7 @@ local function mainLoop()
         -- 5. Выдача задач
         local can_work = state.robot_ready or (state.phase == "EMERGENCY")
         if can_work and not state.busy then
-            local action, key, display_status = tasks.getTask(state, CONFIG)
-                        -- DEBUG: сколько крестов и сколько из них с 2+ зрелыми предками
-                        local dbg_cross, dbg_ready = 0, 0
-                        for k, st in pairs(state.cell_status) do
-                            if st == 2 then
-                                dbg_cross = dbg_cross + 1
-                                local d = state.scan_data[k]
-                                if not d or d.id == "" then
-                                    local mature = 0
-                                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
-                                            mature = mature + 1 
-                                        end
-                                    end
-                                    if mature >= 2 then dbg_ready = dbg_ready + 1 end
-                                end
-                            end
-                        end
-                        if dbg_cross > 0 then
-                            ui.logChat("DBG", "cross="..dbg_cross.." ready="..dbg_ready)
-                        end            
+            local action, key, display_status = tasks.getTask(state, CONFIG)           
             if action then
                 state.task_counter = state.task_counter + 1
                 state.busy = true

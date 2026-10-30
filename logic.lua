@@ -127,4 +127,8 @@ function logic.classify(c, parents, CONFIG)
     return "WEAK"
 end
 
+function logic.isExcess(c, CONFIG)
+    return (c.g > CONFIG.target.g) or (c.ga > CONFIG.target.ga) or (c.r > CONFIG.target.r)
+end
+
 return logic
