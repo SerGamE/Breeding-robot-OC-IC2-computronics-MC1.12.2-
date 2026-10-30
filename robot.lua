@@ -21,7 +21,7 @@ local PORT = 109
 local WAKE_MSG = "WAKE_UP_MAN"
 local WAYPOINT_LABEL = "CHICHI"
 local HOME_FACING = 3 -- 3 = глобальный Юг
-local MIN_STICKS = 32
+local MIN_STICKS = 1
 
 local SLOT_STICK = 1
 local SLOT_AXE   = 2
