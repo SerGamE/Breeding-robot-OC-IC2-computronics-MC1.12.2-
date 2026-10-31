@@ -148,29 +148,25 @@ local function mainLoop()
             local alive_delta = computer.uptime() - state.last_alive
             
             if state.current_task.taken then
-                -- Ждем ACK
                 if alive_delta > 40 then
                     ui.logChat("S", "Таймаут выполнения (нет ALIVE). Бужу.")
                     wakeRobot()
                     need_render = true
                 end
             else
-                -- Ждем TAKEN
                 if delta > 5 then
                     if alive_delta > 30 then
-                        -- Робот умер (нет ALIVE 15 сек)
                         ui.logChat("S", "Робот пропал. Бужу.")
                         wakeRobot()
                         need_render = true
                     else
-                        -- Робот жив, но прослушал. Повторяем.
                         ui.logChat("S", "Повтор #" .. state.current_task.id)
                         if state.phase == "EMERGENCY" then
                             modem.broadcast(CONFIG.port, "CMD", state.current_task.id, "EMERGENCY_CLEAR", state.current_task.key)
                         else
                             modem.broadcast(CONFIG.port, "CMD", state.current_task.id, state.current_task.action, state.current_task.key)
                         end
-                        state.busy_uptime = computer.uptime() -- Даем еще 5 сек на TAKEN
+                        state.busy_uptime = computer.uptime() 
                     end
                 end
             end

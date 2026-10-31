@@ -59,6 +59,7 @@ end
 -- БЛОК 2: НАВИГАЦИЯ И ВОЗВРАТ
 -- ==============================================================================
 local state = {
+    is_working = false
     ready_sent = false, last_ready_time = 0,
     not_ready_sent = false, last_not_ready_time = 0,
     cur_x = 0, cur_z = 0, cur_dir = 0,
@@ -375,15 +376,18 @@ local function processCommand(task_id, action, key, arg2)
     if not state.is_ready and action ~= "EMERGENCY_CLEAR" then return end
     
     if action ~= "EMERGENCY_CLEAR" then
-        local inv_ok, reason = quickInventoryCheck()
-        if not inv_ok and reason == "NO_STICKS" then
+        -- 1. Проверяем палки. Если их меньше нормы, идем к сундуку.
+        local s1 = inv.getStackInInternalSlot(1)
+        if not s1 or s1.name ~= TOOLS.stick or robot.count(1) < MIN_STICKS then
             refillSticks()
-            inv_ok, reason = quickInventoryCheck()
         end
+        
+        -- 2. Теперь полная проверка (палки, оружие, рука, направление)
+        local inv_ok, reason = quickInventoryCheck()
         if not inv_ok then
             state.is_ready = false
             state.is_emergency = true
-            state.not_ready_sent = false -- СБРОС: сразу крикнем NOT_READY
+            state.not_ready_sent = false
             modem.broadcast(PORT, "NOT_READY")
             term.clear(); print("PRE-TASK FAIL: " .. tostring(reason))
             return
@@ -392,8 +396,9 @@ local function processCommand(task_id, action, key, arg2)
     
     -- ШЛЕМ TAKEN
     modem.broadcast(PORT, "TAKEN", task_id)
-    state.ready_sent = false -- СБРОС: мы уехали, теперь не готовы
+    state.ready_sent = false
     state.last_ready_time = os.time()
+    state.is_working = true
     
     if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
         cleanupBeforePlantMulti()
@@ -413,6 +418,7 @@ local function processCommand(task_id, action, key, arg2)
     if not success then modem.broadcast(PORT, "ALERT", "ERR:" .. tostring(err)) end
     
     state.last_completed_task_id = task_id
+    state.is_working = false
     state.pending_ack = { id = task_id, key = key }
 end
 
@@ -437,10 +443,9 @@ local last_quick_check = 0
 while true do
     -- 1. Статус (READY / NOT_READY)
     local at_base = (state.cur_x == 0 and state.cur_z == 0)
-    local should_be_ready = at_base and state.is_ready and not state.pending_ack
+    local should_be_ready = at_base and state.is_ready and not state.pending_ack and not state.is_working
     
     if should_be_ready then
-        -- Мгновенно, если флаг сброшен. Или раз в READY_INTERVAL.
         if not state.ready_sent or (os.time() - state.last_ready_time > READY_INTERVAL) then
             modem.broadcast(PORT, "READY")
             state.ready_sent = true
@@ -451,7 +456,7 @@ while true do
         state.ready_sent = false
     end
     
-    if at_base and state.is_emergency and not state.pending_ack then
+    if at_base and state.is_emergency and not state.pending_ack and not state.is_working then
         if not state.not_ready_sent or (os.time() - state.last_not_ready_time > NOT_READY_INTERVAL) then
             modem.broadcast(PORT, "NOT_READY")
             state.not_ready_sent = true
@@ -481,9 +486,15 @@ while true do
         if os.time() - last_quick_check > 10 then
             local inv_ok, reason = quickInventoryCheck()
             if not inv_ok then
-                state.is_ready = false; state.is_emergency = true
-                state.not_ready_sent = false -- СБРОС
-                term.clear(); print("IDLE CHECK FAIL: " .. reason)
+                if reason == "NO_STICKS" then
+                    refillSticks()
+                    inv_ok, reason = quickInventoryCheck()
+                end
+                if not inv_ok then
+                    state.is_ready = false; state.is_emergency = true
+                    state.not_ready_sent = false
+                    term.clear(); print("IDLE CHECK FAIL: " .. reason)
+                end
             end
             last_quick_check = os.time()
         end
