@@ -37,6 +37,10 @@ local function drawButtons()
 end
 
 local function drawCell(state, key, px, py, cell_w, cell_h)
+    -- Защита от nil
+    local w = cell_w or 10
+    local h = cell_h or 5
+    
     local st = state.cell_status[key]
     local bg_color = 0x222222
     if st == 1 then bg_color = 0x004400
@@ -44,7 +48,7 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
     elseif st == 3 then bg_color = 0x333333 end
     
     gpu.setBackground(bg_color)
-    for row = 0, cell_h - 1 do gpu.set(px, py + row, string.rep(" ", cell_w)) end
+    for row = 0, h - 1 do gpu.set(px, py + row, string.rep(" ", w)) end
     
     if st == 3 then gpu.setForeground(0x777777); gpu.set(px + 2, py + 2, "[TECH]"); return end
     
@@ -52,29 +56,26 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
     local stat = state.status_line[key] or ""
     if not data then
         gpu.setForeground(0x555555); gpu.set(px + 2, py + 2, "empty")
-        -- Всегда затираем строку статуса, даже если статуса нет
-        gpu.set(px + 1, py + 4, string.rep(" ", cell_w - 2))
+        gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
         if stat ~= "" then 
-            gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 4, stat:sub(1, cell_w - 2)) 
+            gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 4, stat:sub(1, w - 2)) 
         end
         return
     end
     if data.id == "" then
         gpu.setForeground(0x55FFFF); gpu.set(px + 3, py + 2, "DBL")
-        -- Всегда затираем строку статуса
-        gpu.set(px + 1, py + 4, string.rep(" ", cell_w - 2))
+        gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
         if stat ~= "" then 
-            gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 4, stat:sub(1, cell_w - 2)) 
+            gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 4, stat:sub(1, w - 2)) 
         end
         return
     end
-    gpu.setForeground(0xFFFFFF); gpu.set(px + 1, py, (data.id or "---"):sub(1, cell_w - 2))
-    gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 1, (data.stats or "-/-/-"):sub(1, cell_w - 2))
-    gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 2, (data.stage or "0/7"):sub(1, cell_w - 2))
-    gpu.setForeground(0xAA55FF); gpu.set(px + 1, py + 3, ("GP:"..(data.gp or "0")):sub(1, cell_w - 2))
+    gpu.setForeground(0xFFFFFF); gpu.set(px + 1, py, (data.id or "---"):sub(1, w - 2))
+    gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 1, (data.stats or "-/-/-"):sub(1, w - 2))
+    gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 2, (data.stage or "0/7"):sub(1, w - 2))
+    gpu.setForeground(0xAA55FF); gpu.set(px + 1, py + 3, ("GP:"..(data.gp or "0")):sub(1, w - 2))
     
-    -- ВСЕГДА затираем строку статуса перед отрисовкой
-    gpu.set(px + 1, py + 4, string.rep(" ", cell_w - 2))
+    gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
     
     if stat ~= "" then
         if stat:match("WEAK") or stat:match("EXCESS") or stat:match("NEW") or stat:match("REPLACE") or stat:match("CLEAR") or stat:match("WEED") or stat:match("G24") then 
@@ -86,7 +87,7 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
         else 
             gpu.setForeground(0xFFFFFF) 
         end
-        gpu.set(px + 1, py + 4, stat:sub(1, cell_w - 2))
+        gpu.set(px + 1, py + 4, stat:sub(1, w - 2))
     end
 end
 
