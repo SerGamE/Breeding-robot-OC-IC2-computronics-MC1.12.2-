@@ -57,6 +57,7 @@ end
 -- БЛОК 2: НАВИГАЦИЯ И ВОЗВРАТ
 -- ==============================================================================
 local state = {
+    last_ready_pulse = 0,
     ready_sent = false,
     not_ready_sent = false,
     cur_x = 0, cur_z = 0, cur_dir = 0,
@@ -431,24 +432,31 @@ local last_diag_time = 0
 local last_quick_check = 0
 
 while true do
-    -- 1. Статус (шлем ОДИН РАЗ при смене состояния)
+    -- 1. Статус (READY / NOT_READY)
     local at_base = (state.cur_x == 0 and state.cur_z == 0)
     local should_be_ready = at_base and state.is_ready and not state.pending_ack
     
-    if should_be_ready and not state.ready_sent then
-        modem.broadcast(PORT, "READY")
-        state.ready_sent = true
-        state.not_ready_sent = false
-    elseif not should_be_ready then
+    if should_be_ready then
+        -- Пульс READY раз в 30 секунд
+        if not state.ready_sent or (os.time() - state.last_ready_pulse > 30) then
+            modem.broadcast(PORT, "READY")
+            state.ready_sent = true
+            state.not_ready_sent = false
+            state.last_ready_pulse = os.time()
+        end
+    else
         state.ready_sent = false
     end
     
-    -- Если мы сломались (is_emergency) и на базе — шлем NOT_READY один раз
-    if at_base and state.is_emergency and not state.not_ready_sent then
-        modem.broadcast(PORT, "NOT_READY")
-        state.not_ready_sent = true
-        state.ready_sent = false
-    elseif not state.is_emergency then
+    -- Пульс NOT_READY раз в 30 секунд
+    if at_base and state.is_emergency then
+        if not state.not_ready_sent or (os.time() - state.last_ready_pulse > 30) then
+            modem.broadcast(PORT, "NOT_READY")
+            state.not_ready_sent = true
+            state.ready_sent = false
+            state.last_ready_pulse = os.time()
+        end
+    else
         state.not_ready_sent = false
     end
 
