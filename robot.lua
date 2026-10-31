@@ -26,6 +26,8 @@ local MIN_STICKS = 1
 local SLOT_STICK = 1
 local SLOT_AXE   = 2
 local FIRST_CARGO_SLOT = 3
+local READY_INTERVAL = 30
+local NOT_READY_INTERVAL = 20
 
 modem.open(PORT)
 modem.setWakeMessage(WAKE_MSG)
@@ -57,9 +59,8 @@ end
 -- БЛОК 2: НАВИГАЦИЯ И ВОЗВРАТ
 -- ==============================================================================
 local state = {
-    ready_sent = false,
-    not_ready_sent = false,
-    last_ready_pulse = 0,
+    ready_sent = false, last_ready_time = 0,
+    not_ready_sent = false, last_not_ready_time = 0,
     cur_x = 0, cur_z = 0, cur_dir = 0,
     is_ready = false, is_emergency = false,
     last_completed_task_id = nil,
@@ -382,6 +383,7 @@ local function processCommand(task_id, action, key, arg2)
         if not inv_ok then
             state.is_ready = false
             state.is_emergency = true
+            state.not_ready_sent = false -- СБРОС: сразу крикнем NOT_READY
             modem.broadcast(PORT, "NOT_READY")
             term.clear(); print("PRE-TASK FAIL: " .. tostring(reason))
             return
@@ -390,8 +392,8 @@ local function processCommand(task_id, action, key, arg2)
     
     -- ШЛЕМ TAKEN
     modem.broadcast(PORT, "TAKEN", task_id)
-    state.ready_sent = false -- Теперь мы не "готовы", мы работаем
-    state.last_ready_pulse = os.time()
+    state.ready_sent = false -- СБРОС: мы уехали, теперь не готовы
+    state.last_ready_time = os.time()
     
     if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
         cleanupBeforePlantMulti()
@@ -411,7 +413,7 @@ local function processCommand(task_id, action, key, arg2)
     if not success then modem.broadcast(PORT, "ALERT", "ERR:" .. tostring(err)) end
     
     state.last_completed_task_id = task_id
-    state.pending_ack = { id = task_id, key = key } -- ACK отправит основной цикл
+    state.pending_ack = { id = task_id, key = key }
 end
 
 -- ==============================================================================
@@ -433,26 +435,31 @@ local last_diag_time = 0
 local last_quick_check = 0
 
 while true do
-    -- 1. Статус (READY / NOT_READY) - пульс раз в 30 сек
+    -- 1. Статус (READY / NOT_READY)
     local at_base = (state.cur_x == 0 and state.cur_z == 0)
     local should_be_ready = at_base and state.is_ready and not state.pending_ack
     
     if should_be_ready then
-        if not state.ready_sent or (os.time() - state.last_ready_pulse > 30) then
+        -- Мгновенно, если флаг сброшен. Или раз в READY_INTERVAL.
+        if not state.ready_sent or (os.time() - state.last_ready_time > READY_INTERVAL) then
             modem.broadcast(PORT, "READY")
             state.ready_sent = true
+            state.last_ready_time = os.time()
             state.not_ready_sent = false
-            state.last_ready_pulse = os.time()
         end
     else
         state.ready_sent = false
-        if state.is_emergency and at_base then
-            if not state.not_ready_sent or (os.time() - state.last_ready_pulse > 30) then
-                modem.broadcast(PORT, "NOT_READY")
-                state.not_ready_sent = true
-                state.last_ready_pulse = os.time()
-            end
+    end
+    
+    if at_base and state.is_emergency and not state.pending_ack then
+        if not state.not_ready_sent or (os.time() - state.last_not_ready_time > NOT_READY_INTERVAL) then
+            modem.broadcast(PORT, "NOT_READY")
+            state.not_ready_sent = true
+            state.last_not_ready_time = os.time()
+            state.ready_sent = false
         end
+    else
+        state.not_ready_sent = false
     end
 
     -- 2. Диагностика
@@ -461,13 +468,11 @@ while true do
             local ok, reason = selfDiagnosis()
             if ok then
                 state.is_ready = true; state.is_emergency = false
-                state.ready_sent = false
-                state.last_ready_pulse = 0 -- Сброс, чтобы сразу послать READY
+                state.ready_sent = false -- СБРОС: мгновенно крикнем READY
                 term.clear(); print("READY")
             else
                 state.is_emergency = true
-                state.not_ready_sent = false
-                state.last_ready_pulse = 0
+                state.not_ready_sent = false -- СБРОС: мгновенно крикнем NOT_READY
                 term.clear(); print("EMERGENCY: " .. tostring(reason))
             end
             last_diag_time = os.time()
@@ -477,9 +482,7 @@ while true do
             local inv_ok, reason = quickInventoryCheck()
             if not inv_ok then
                 state.is_ready = false; state.is_emergency = true
-                state.ready_sent = false
-                state.not_ready_sent = false
-                state.last_ready_pulse = 0
+                state.not_ready_sent = false -- СБРОС
                 term.clear(); print("IDLE CHECK FAIL: " .. reason)
             end
             last_quick_check = os.time()
@@ -495,7 +498,7 @@ while true do
         end
     end
 
-    -- 4. Отправка ACK (один раз!)
+    -- 4. Отправка ACK
     if state.pending_ack then
         modem.broadcast(PORT, "ACK", state.pending_ack.id, state.pending_ack.key)
         state.pending_ack = nil

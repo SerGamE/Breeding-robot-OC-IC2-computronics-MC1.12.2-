@@ -23,7 +23,7 @@ local state = {
     busy = false, busy_uptime = 0,
     robot_ready = false, last_wake_uptime = 0,
     max_parent = {g=0, ga=0, r=0}, max_child = {g=0, ga=0, r=0},
-    paused = false, shutdown_mode = false, emergency_notified = false
+    paused = false, shutdown_mode = false, emergency_notified = false, last_alive = 0
 }
 
 local function setStatus(key, text) state.status_line[key] = text end
@@ -32,6 +32,7 @@ local function wakeRobot()
     modem.broadcast(CONFIG.port, CONFIG.wake_message)
     state.busy_uptime = computer.uptime()
     state.last_wake_uptime = computer.uptime()
+    state.last_alive = computer.uptime() -- Сбрасываем таймер жизни
     state.robot_ready = false 
     state.busy = false
     state.current_task = nil
@@ -61,7 +62,7 @@ local function mainLoop()
         -- 1. Сеть
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, id, arg1, arg2, arg3 = table.unpack(ev)
-            state.busy_uptime = computer.uptime()
+            --state.busy_uptime = computer.uptime()
 
             if msg == "READY" then
                 state.robot_ready = true
@@ -91,8 +92,7 @@ local function mainLoop()
                 end
 
             elseif msg == "ALIVE" then
-                -- Просто сбрасываем таймер (busy_uptime уже обновлен выше)
-                -- Не ставим taken = true
+                state.last_alive = computer.uptime() -- Обновляем ТОЛЬКО таймер жизни!
                 
             elseif msg == "ACK" then
                 if state.current_task and state.current_task.id == id then
@@ -145,32 +145,32 @@ local function mainLoop()
         -- 2. Таймауты
         if state.busy and state.current_task then
             local delta = computer.uptime() - state.busy_uptime
+            local alive_delta = computer.uptime() - state.last_alive
             
             if state.current_task.taken then
-                -- Ждем ACK (робот взял и работает). Ждем 40 секунд без ALIVE.
-                if delta > 40 then
-                    ui.logChat("S", "Таймаут выполнения! Бужу робота.")
+                -- Ждем ACK
+                if alive_delta > 40 then
+                    ui.logChat("S", "Таймаут выполнения (нет ALIVE). Бужу.")
                     wakeRobot()
                     need_render = true
                 end
             else
-                -- Ждем TAKEN (робот не взял задачу). Ждем 5 секунд.
+                -- Ждем TAKEN
                 if delta > 5 then
-                    -- Повторяем задачу ТОЛЬКО если робот готов (прислал READY) ИЛИ мы в EMERGENCY
-                    if state.robot_ready or state.phase == "EMERGENCY" then
-                        ui.logChat("S", "Робот не взял задачу. Повтор #" .. state.current_task.id)
+                    if alive_delta > 30 then
+                        -- Робот умер (нет ALIVE 15 сек)
+                        ui.logChat("S", "Робот пропал. Бужу.")
+                        wakeRobot()
+                        need_render = true
+                    else
+                        -- Робот жив, но прослушал. Повторяем.
+                        ui.logChat("S", "Повтор #" .. state.current_task.id)
                         if state.phase == "EMERGENCY" then
                             modem.broadcast(CONFIG.port, "CMD", state.current_task.id, "EMERGENCY_CLEAR", state.current_task.key)
                         else
                             modem.broadcast(CONFIG.port, "CMD", state.current_task.id, state.current_task.action, state.current_task.key)
                         end
-                        state.busy_uptime = computer.uptime() -- Даем еще 5 сек
-                    else
-                        ui.logChat("S", "Робот не готов. Жду READY.")
-                        state.busy = false
-                        state.current_task = nil
-                        state.locked = {}
-                        need_render = true
+                        state.busy_uptime = computer.uptime() -- Даем еще 5 сек на TAKEN
                     end
                 end
             end
