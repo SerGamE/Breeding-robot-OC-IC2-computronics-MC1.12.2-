@@ -66,6 +66,13 @@ local function mainLoop()
             if msg == "READY" then
                 state.robot_ready = true
                 state.emergency_notified = false
+                if state.phase == "EMERGENCY" then
+                    state.phase = "INIT"
+                    state.busy = false
+                    state.current_task = nil
+                    state.locked = {}
+                    ui.logChat("S", "EMERGENCY OFF (робот починился)")
+                end
                 need_render = true
                 
             elseif msg == "NOT_READY" then
@@ -78,15 +85,14 @@ local function mainLoop()
                 end
                 need_render = true
                 
-            elseif msg == "ALIVE" then
-                -- ALIVE только для сброса таймера.
-                state.busy_uptime = computer.uptime()
-
             elseif msg == "TAKEN" then
                 if state.current_task and state.current_task.id == id then
                     state.current_task.taken = true
-                    state.busy_uptime = computer.uptime()
                 end
+
+            elseif msg == "ALIVE" then
+                -- Просто сбрасываем таймер (busy_uptime уже обновлен выше)
+                -- Не ставим taken = true
                 
             elseif msg == "ACK" then
                 if state.current_task and state.current_task.id == id then
@@ -141,22 +147,25 @@ local function mainLoop()
             local delta = computer.uptime() - state.busy_uptime
             
             if state.current_task.taken then
-                -- Ждем ACK (робот взял и работает)
+                -- Ждем ACK (робот взял и работает). Ждем 40 секунд без ALIVE.
                 if delta > 40 then
                     ui.logChat("S", "Таймаут выполнения! Бужу робота.")
                     wakeRobot()
                     need_render = true
                 end
             else
-                -- Ждем TAKEN (робот не взял задачу)
+                -- Ждем TAKEN (робот не взял задачу). Ждем 5 секунд.
                 if delta > 5 then
-                    if state.robot_ready then
-                        -- Робот сказал READY, но прослушал. Шлем еще раз.
+                    -- Повторяем задачу ТОЛЬКО если робот готов (прислал READY) ИЛИ мы в EMERGENCY
+                    if state.robot_ready or state.phase == "EMERGENCY" then
                         ui.logChat("S", "Робот не взял задачу. Повтор #" .. state.current_task.id)
-                        modem.broadcast(CONFIG.port, "CMD", state.current_task.id, state.current_task.action, state.current_task.key)
+                        if state.phase == "EMERGENCY" then
+                            modem.broadcast(CONFIG.port, "CMD", state.current_task.id, "EMERGENCY_CLEAR", state.current_task.key)
+                        else
+                            modem.broadcast(CONFIG.port, "CMD", state.current_task.id, state.current_task.action, state.current_task.key)
+                        end
                         state.busy_uptime = computer.uptime() -- Даем еще 5 сек
                     else
-                        -- Робот не сказал READY (возможно проснулся, но не загрузился)
                         ui.logChat("S", "Робот не готов. Жду READY.")
                         state.busy = false
                         state.current_task = nil
