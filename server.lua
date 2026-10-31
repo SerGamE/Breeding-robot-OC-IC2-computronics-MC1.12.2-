@@ -92,12 +92,10 @@ local function mainLoop()
 
             if msg == "READY" then
                 state.robot_ready = true
-                state.busy = false
-                state.current_task = nil
-                state.locked = {} 
-                if state.phase == "EMERGENCY" then
-                    state.phase = "INIT"
-                    ui.logChat("S", "EMERGENCY OFF")
+                -- Если мы не ждем TAKEN/ACK, то сбрасываем всё
+                if not state.busy then
+                    state.current_task = nil
+                    state.locked = {}
                 end
                 state.emergency_notified = false
                 need_render = true
@@ -113,15 +111,16 @@ local function mainLoop()
                     state.emergency_notified = true
                 end
                 need_render = true
-            
-            elseif msg == "ALIVE" then
-                state.busy_uptime = computer.uptime()-- Робот жив, сбрасываем таймер таймаута
+                
             elseif msg == "TAKEN" then
                 if state.current_task and state.current_task.id == id then
                     state.current_task.taken = true
-                    state.busy_uptime = computer.uptime() -- обновляем таймер
-                    -- Можно не рендерить, это служебное
+                    state.busy_uptime = computer.uptime()
                 end
+
+            elseif msg == "ALIVE" then
+                -- Сбрасываем таймаут ожидания
+                state.busy_uptime = computer.uptime()
                 
             elseif msg == "ACK" then
                 if state.current_task and state.current_task.id == id then
@@ -182,7 +181,7 @@ local function mainLoop()
         -- 2. Таймаут (10 сек на TAKEN, 30 сек на ACK)
         if state.busy and state.current_task then
             local delta = computer.uptime() - state.busy_uptime
-            local timeout = state.current_task.taken and 40 or 10
+            local timeout = state.current_task.taken and 40 or 5
             if delta > timeout then
                 ui.logChat("S", "Таймаут! Бужу робота.")
                 wakeRobot()
@@ -195,7 +194,7 @@ local function mainLoop()
 
         -- 3. Скан (быстрый 0.2, полный 3)
         if computer.uptime() - last_scan >= 0.2 then
-            local full = (computer.uptime() - last_full_scan >= 3)
+            local full = (computer.uptime() - last_full_scan >= 2)
             scanner.scan(state, CONFIG, CROP_DB, full)
             if full then last_full_scan = computer.uptime() end
             last_scan = computer.uptime()
