@@ -57,6 +57,8 @@ end
 -- БЛОК 2: НАВИГАЦИЯ И ВОЗВРАТ
 -- ==============================================================================
 local state = {
+    ready_sent = false,
+    not_ready_sent = false,
     cur_x = 0, cur_z = 0, cur_dir = 0,
     is_ready = false, is_emergency = false,
     last_completed_task_id = nil,
@@ -387,6 +389,7 @@ local function processCommand(task_id, action, key, arg2)
     
     -- ШЛЕМ TAKEN
     modem.broadcast(PORT, "TAKEN", task_id)
+    state.ready_sent = false -- Теперь мы не "готовы", мы работаем
     
     if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
         cleanupBeforePlantMulti()
@@ -416,7 +419,7 @@ term.clear()
 setupTools()
 emergencyGoHome()
 
--- Фоновый поток: ALIVE (раз в 10 сек)
+-- Фоновый поток: только ALIVE
 thread.create(function()
     while true do
         modem.broadcast(PORT, "ALIVE")
@@ -428,14 +431,25 @@ local last_diag_time = 0
 local last_quick_check = 0
 
 while true do
-    -- 1. Статус (READY / NOT_READY) шлем только на базе
+    -- 1. Статус (шлем ОДИН РАЗ при смене состояния)
     local at_base = (state.cur_x == 0 and state.cur_z == 0)
-    if at_base and not state.pending_ack then -- Не спамим READY, если только что выполнили задачу
-        if state.is_ready then
-            modem.broadcast(PORT, "READY")
-        elseif state.is_emergency then
-            modem.broadcast(PORT, "NOT_READY")
-        end
+    local should_be_ready = at_base and state.is_ready and not state.pending_ack
+    
+    if should_be_ready and not state.ready_sent then
+        modem.broadcast(PORT, "READY")
+        state.ready_sent = true
+        state.not_ready_sent = false
+    elseif not should_be_ready then
+        state.ready_sent = false
+    end
+    
+    -- Если мы сломались (is_emergency) и на базе — шлем NOT_READY один раз
+    if at_base and state.is_emergency and not state.not_ready_sent then
+        modem.broadcast(PORT, "NOT_READY")
+        state.not_ready_sent = true
+        state.ready_sent = false
+    elseif not state.is_emergency then
+        state.not_ready_sent = false
     end
 
     -- 2. Диагностика
@@ -444,12 +458,10 @@ while true do
             local ok, reason = selfDiagnosis()
             if ok then
                 state.is_ready = true; state.is_emergency = false
-                modem.broadcast(PORT, "READY")
                 term.clear(); print("READY")
             else
                 state.is_emergency = true
                 term.clear(); print("EMERGENCY: " .. tostring(reason))
-                modem.broadcast(PORT, "NOT_READY")
             end
             last_diag_time = os.time()
         end
@@ -458,7 +470,6 @@ while true do
             local inv_ok, reason = quickInventoryCheck()
             if not inv_ok then
                 state.is_ready = false; state.is_emergency = true
-                modem.broadcast(PORT, "NOT_READY")
                 term.clear(); print("IDLE CHECK FAIL: " .. reason)
             end
             last_quick_check = os.time()
