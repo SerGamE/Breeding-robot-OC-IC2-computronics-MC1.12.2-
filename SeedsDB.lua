@@ -37,12 +37,12 @@ return {
     [ "plumbiscus" ] = { label = "Plumbiscus Seeds", stages = 4 }, -- Плюмбий (Свинец)
     [ "aurelia" ] = { label = "Aurelia Seeds", stages = 5 }, -- Аурелия (Золото)
     -- ДЕРЕВЬЯ (Bonsai-жердочки из ванильного IC2 Experimental 1.12.2)
-    [ "oak" ] = { label = "Oak Bonsai Seeds", stages = 4 }, -- Дуб
-    [ "spruce" ] = { label = "Spruce Bonsai Seeds", stages = 4 }, -- Ель
-    [ "birch" ] = { label = "Birch Bonsai Seeds", stages = 4 }, -- Берёза
-    [ "jungle" ] = { label = "Jungle Bonsai Seeds", stages = 4 }, -- Тропическое дерево
-    [ "acacia" ] = { label = "Acacia Bonsai Seeds", stages = 4 }, -- Акация
-    [ "dark_oak" ] = { label = "Dark Oak Bonsai Seeds", stages = 4 }, -- Тёмный дуб
+    [ "oak_sapling" ] = { label = "Oak Bonsai Seeds", stages = 4 }, -- Дуб
+    [ "spruce_sapling" ] = { label = "Spruce Bonsai Seeds", stages = 4 }, -- Ель
+    [ "birch_sapling" ] = { label = "Birch Bonsai Seeds", stages = 4 }, -- Берёза
+    [ "jungle_sapling" ] = { label = "Jungle Bonsai Seeds", stages = 4 }, -- Тропическое дерево
+    [ "acacia_sapling" ] = { label = "Acacia Bonsai Seeds", stages = 4 }, -- Акация
+    [ "dark_oak_sapling" ] = { label = "Dark Oak Bonsai Seeds", stages = 4 }, -- Тёмный дуб
     ---------------------------------------------------------------------------
     -- АДДОННЫЕ КУЛЬТУРЫ (GregTech / CropsNH / BrainTech)
     ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ return {
     [ "creeper_weed" ] = { label = "Creeper Weed Seeds", stages = 4 }, -- Creeper Weed (Порох)
     -- Масляные, энергетические и высокоуровневые рудные аддоны
     [ "oil_berries" ] = { label = "Oil Berries Seeds", stages = 4 }, -- Oil Berries (Нефть?/Уголь?)
-    [ "argentium" ] = { label = "Argentium Seeds", stages = 4 }, -- Аргентий (Серебро)
+    [ "shining" ] = { label = "Argentium Seeds", stages = 4 }, -- Аргентий (Серебро)
     [ "blazereed" ] = { label = "Blazereed Seeds", stages = 4 }, -- Blazereed (Стержни и порошок ифрита)
     [ "withereed" ] = { label = "Withereed Seeds", stages = 4 }, -- Withereed (Уголь/Черепа Иссушителя)
     [ "tearstalks" ] = { label = "Tearstalks Seeds", stages = 4 }, -- Tearstalks (Слёзы Гаста)
