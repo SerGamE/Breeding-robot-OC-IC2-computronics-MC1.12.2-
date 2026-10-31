@@ -59,7 +59,7 @@ end
 -- БЛОК 2: НАВИГАЦИЯ И ВОЗВРАТ
 -- ==============================================================================
 local state = {
-    is_working = false
+    is_working = false,
     ready_sent = false, last_ready_time = 0,
     not_ready_sent = false, last_not_ready_time = 0,
     cur_x = 0, cur_z = 0, cur_dir = 0,
