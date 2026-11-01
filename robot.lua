@@ -28,6 +28,8 @@ local SLOT_AXE   = 2
 local FIRST_CARGO_SLOT = 3
 local READY_INTERVAL = 30
 local NOT_READY_INTERVAL = 20
+local CHEST_NEW = { x = 0, z = 2 } -- Сундук 3 (новые виды)для режима MUTATION
+local CHEST_TOP = { x = 0, z = 3 } -- Сундук 4 (топ семена)для режима MUTATION
 
 modem.open(PORT)
 modem.setWakeMessage(WAKE_MSG)
@@ -331,6 +333,41 @@ local function taskEmergencyClear(task_id, key)
     goHome()
 end
 
+local function taskHarvestSeeds(task_id, plant_key, chest_coords)
+    -- 1. Идем на грядку
+    local x, z = plant_key:match("(%d+),(%d+)")
+    walk(tonumber(x), tonumber(z))
+    -- 2. Создаем список пустых слотов
+    local my_empty_slots = {}
+    for slot = 3, robot.inventorySize() do
+        if inv.getStackInInternalSlot(slot) == nil then
+            table.insert(my_empty_slots, slot)
+        end
+    end
+    -- 3. Сносим растение
+    swingAxe(); os.sleep(1.5)
+    -- 4. Проверяем, что упало в пустые слоты
+    local my_seeds_slots = {}
+    for _, slot in ipairs(my_empty_slots) do
+        local s = inv.getStackInInternalSlot(slot)
+        if s and s.name == "ic2:crop_seed_bag" then
+            table.insert(my_seeds_slots, slot)
+        end
+    end
+    -- 5. Идем к нужному сундуку и скидываем семена
+    if #my_seeds_slots > 0 then
+        walk(chest_coords.x, chest_coords.z)
+        for _, slot in ipairs(my_seeds_slots) do
+            robot.select(slot)
+            robot.dropDown()
+        end
+        robot.select(1)
+    end
+    -- 6. Возврат и чистка (функция вызывается в конце, чистка остатков мусора)
+    goHome()
+    dropCargo()
+end
+
 local function taskReplaceTry(task_id, cross_key, weak_key)
     local my_empty_slots = {}
     for slot = 3, robot.inventorySize() do
@@ -412,6 +449,8 @@ local function processCommand(task_id, action, key, arg2)
         elseif action == "REPLACE_TRY" then taskReplaceTry(task_id, key, arg2)
         elseif action == "PLANT_MULTI" then taskPlantMulti(task_id, key)
         elseif action == "EMERGENCY_CLEAR" then taskEmergencyClear(task_id, key)
+        elseif action == "HARVEST_NEW" then taskHarvestSeeds(task_id, key, CHEST_NEW)
+        elseif action == "HARVEST_TOP" then taskHarvestSeeds(task_id, key, CHEST_TOP)
         end
     end)
     

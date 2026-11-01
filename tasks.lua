@@ -48,12 +48,12 @@ function tasks.getTask(state, CONFIG)
     
     if state.phase == "INIT" then return nil end
     
-    -- 5. MUTATION: Сбор семян новых видов (только если выросли до максимума)
+    -- 5. MUTATION: Сбор семян новых видов
     if state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
                 if d.sz >= d.max_stages then
-                    return "DESTROY", k, "NEW_SEEDS"
+                    return "HARVEST_NEW", k, "NEW_SEEDS"
                 end
             end
         end
@@ -172,7 +172,27 @@ function tasks.getTask(state, CONFIG)
             end
         end
     end
-    
+    -- 10.5. MUTATION: Сбор ТОП семян (если все родители target)
+    if state.phase == "MUTATION" then
+        local need_replace = false
+        for pk, st in pairs(state.cell_status) do
+            if st == 1 then
+                local pd = state.scan_data[pk]
+                if not pd or pd.id ~= CONFIG.crop_id then need_replace = true; break end
+                if pd.g < CONFIG.target.g or pd.ga < CONFIG.target.ga or pd.r < CONFIG.target.r then need_replace = true; break end
+            end
+        end
+        
+        if not need_replace then
+            for k, d in pairs(state.scan_data) do
+                if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
+                    if d.g >= CONFIG.target.g and d.ga >= CONFIG.target.ga and d.r >= CONFIG.target.r then
+                        return "HARVEST_TOP", k, "TOP_SEEDS"
+                    end
+                end
+            end
+        end
+    end
     return nil
 end
 
