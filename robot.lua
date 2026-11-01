@@ -67,8 +67,7 @@ local state = {
     cur_x = 0, cur_z = 0, cur_dir = 0,
     is_ready = false, is_emergency = false,
     last_completed_task_id = nil,
-    pending_ack = nil,
-    my_best_seeds = {}
+    pending_ack = nil
 }
 
 local function getPos()
@@ -368,39 +367,82 @@ local function taskHarvestSeeds(task_id, plant_key, chest_coords)
     dropCargo()
 end
 
-local function taskReplaceTry(task_id, cross_key, weak_key)
+local function taskMultiPlant(task_id, plant_key)
+    -- 1. Идем к растению
+    local x, z = plant_key:match("(%d+),(%d+)")
+    walk(tonumber(x), tonumber(z))
+
+    -- 2. Список пустых слотов
     local my_empty_slots = {}
     for slot = 3, robot.inventorySize() do
-        if inv.getStackInInternalSlot(slot) == nil then table.insert(my_empty_slots, slot) end
-    end
-    local cx, cz = cross_key:match("(%d+),(%d+)")
-    if robot.count(3) > 0 then dropCargo() end
-    walk(tonumber(cx), tonumber(cz))
-    swingAxe(); os.sleep(1.5)
-    
-    state.my_best_seeds = {}
-    for _, slot in ipairs(my_empty_slots) do
-        local s = inv.getStackInInternalSlot(slot)
-        if s and s.name == "ic2:crop_seed_bag" then table.insert(state.my_best_seeds, slot) end
-    end
-    placeDoubleCrop()
-    modem.broadcast(PORT, "REPLACE_RESULT", task_id, cross_key, weak_key, #state.my_best_seeds)
-    if #state.my_best_seeds == 0 then dropCargo() end
-end
-
-local function taskPlantMulti(task_id, coords_str)
-    local coords = serialization.unserialize(coords_str)
-    for i, coord in ipairs(coords) do
-        local x, z = coord:match("(%d+),(%d+)")
-        walk(tonumber(x), tonumber(z))
-        local slot = state.my_best_seeds[i]
-        if slot then
-            robot.select(1); robot.placeDown()
-            robot.select(slot); robot.placeDown()
-            robot.select(1)
+        if inv.getStackInInternalSlot(slot) == nil then
+            table.insert(my_empty_slots, slot)
         end
     end
-    state.my_best_seeds = {}
+
+    -- 3. Сносим растение
+    swingAxe(); os.sleep(1.5)
+
+    -- 4. Ищем семена
+    local my_best_seeds = {}
+    for _, slot in ipairs(my_empty_slots) do
+        local s = inv.getStackInInternalSlot(slot)
+        if s and s.name == "ic2:crop_seed_bag" then
+            table.insert(my_best_seeds, slot)
+        end
+    end
+
+    -- 5. Отправляем количество семян
+    modem.broadcast(PORT, "SEEDS", task_id, #my_best_seeds)
+
+    if #my_best_seeds == 0 then
+        goHome()
+        dropCargo()
+        return
+    end
+
+    -- 6. Ждем ответ с координатами (с таймаутом 15 секунд)
+    local timer = os.time()
+    local coords_str = nil
+    while os.time() - timer < 15 do
+        local ev = table.pack(event.pull(1, "modem_message"))
+        if ev[1] == "modem_message" then
+            local _, _, _, _, _, msg, r_id, r_coords = table.unpack(ev)
+            if msg == "REPLACE_CORDS" and r_id == task_id then
+                coords_str = r_coords
+                break
+            end
+        end
+    end
+
+    if coords_str then
+        local coords = serialization.unserialize(coords_str)
+        for i, coord in ipairs(coords) do
+            local slot = my_best_seeds[i]
+            if slot then
+                local tx, tz = coord:match("(%d+),(%d+)")
+                walk(tonumber(tx), tonumber(tz))
+                
+                -- 8. Сносим родителя (или пустое место)
+                if robot.detectDown() then
+                    swingAxe(); os.sleep(1.0)
+                end
+                
+                -- 9. Ставим жердочку и сажаем
+                robot.select(1); robot.placeDown() -- одиночная (создастся при useDown)
+                robot.select(1); inv.equip()
+                robot.useDown(); robot.useDown()
+                inv.equip()
+                
+                robot.select(slot)
+                robot.placeDown()
+                robot.select(1)
+            end
+        end
+    end
+
+    -- 11. Возврат и чистка
+    goHome()
     dropCargo()
 end
 
@@ -437,17 +479,12 @@ local function processCommand(task_id, action, key, arg2)
     state.last_ready_time = os.time()
     state.is_working = true
     
-    if action == "PLANT_MULTI" or action == "REPLACE_TRY" then
-        cleanupBeforePlantMulti()
-    end
-    
     local success, err = pcall(function()
         if action == "PLACE_DOUBLE" then taskPlaceDouble(task_id, key)
         elseif action == "DESTROY" then taskDestroy(task_id, key)
         elseif action == "CLEAR" then taskClear(task_id, key)
         elseif action == "WEED" then taskWeed(task_id, key)
-        elseif action == "REPLACE_TRY" then taskReplaceTry(task_id, key, arg2)
-        elseif action == "PLANT_MULTI" then taskPlantMulti(task_id, key)
+        elseif action == "MULTI_PLANT" then taskMultiPlant(task_id, key)
         elseif action == "EMERGENCY_CLEAR" then taskEmergencyClear(task_id, key)
         elseif action == "HARVEST_NEW" then taskHarvestSeeds(task_id, key, CHEST_NEW)
         elseif action == "HARVEST_TOP" then taskHarvestSeeds(task_id, key, CHEST_TOP)

@@ -120,7 +120,6 @@ function tasks.getTask(state, CONFIG)
         end
         
         if need_replace then
-            -- ищем топ-крест и отдаем REPLACE_TRY
             for k, d in pairs(state.scan_data) do
                 if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
                     local parents = {}
@@ -128,27 +127,7 @@ function tasks.getTask(state, CONFIG)
                         if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
                     end
                     if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
-                        -- ищем худшего родителя
-                        local target = nil
-                        local worst_score = 9999
-                        for pk, st in pairs(state.cell_status) do
-                            if st == 1 and not state.locked[pk] then
-                                local pd = state.scan_data[pk]
-                                local score = -1
-                                if pd and pd.id == CONFIG.crop_id then score = (pd.g or 0) + (pd.ga or 0) + (pd.r or 0) end
-                                if score < worst_score then worst_score = score; target = pk end
-                            end
-                        end
-                        if target then return "REPLACE_TRY", k, target end
-                    end
-                end
-            end
-        else
-            -- Все родители target. Ищем выросший крест с target для сноса
-            for k, d in pairs(state.scan_data) do
-                if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then
-                    if d.g >= CONFIG.target.g and d.ga >= CONFIG.target.ga and d.r >= CONFIG.target.r then
-                        return "DESTROY", k, "TOP_SEEDS" 
+                        return "MULTI_PLANT", k, "MULTI" -- Отдаем только ключ растения
                     end
                 end
             end

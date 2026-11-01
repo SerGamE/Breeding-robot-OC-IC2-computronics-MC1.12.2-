@@ -101,15 +101,10 @@ local function mainLoop()
                     setStatus(arg1, nil)
                     need_render = true
                 end
-                
-            elseif msg == "REPLACE_RESULT" then
+
+            elseif msg == "SEEDS" then
                 if state.current_task and state.current_task.id == id then
-                    state.busy = false; state.current_task = nil
-                    if state.locked[arg1] then state.locked[arg1] = nil end
-                    if state.locked[arg2] then state.locked[arg2] = nil end
-                    setStatus(arg1, nil)
-                    
-                    local seeds_count = tonumber(arg3) or 0
+                    local seeds_count = tonumber(arg1) or 0
                     if seeds_count > 0 then
                         local candidates = {}
                         for pk, st in pairs(state.cell_status) do
@@ -125,17 +120,14 @@ local function mainLoop()
                         for i = 1, math.min(seeds_count, #candidates) do table.insert(targets, candidates[i].key) end
                         
                         if #targets > 0 then
-                            state.task_counter = state.task_counter + 1
-                            state.busy = true
-                            state.busy_uptime = computer.uptime()
-                            state.current_task = { id = state.task_counter, key = arg1, action = "PLANT_MULTI", taken = false }
-                            local coords = serialization.serialize(targets)
-                            modem.broadcast(CONFIG.port, "CMD", state.task_counter, "PLANT_MULTI", coords)
-                            ui.logChat("S>", string.format("PLANT_MULTI #%d -> %d слотов", state.task_counter, #targets))
+                            local coords_str = serialization.serialize(targets)
+                            modem.broadcast(CONFIG.port, "REPLACE_CORDS", id, coords_str)
+                            -- Задача продолжается, ждем ACK
                         end
                     end
-                    need_render = true
                 end
+            end
+
             elseif msg == "ALERT" then
                 ui.logChat("R<", "ERROR: " .. tostring(arg1))
                 need_render = true
