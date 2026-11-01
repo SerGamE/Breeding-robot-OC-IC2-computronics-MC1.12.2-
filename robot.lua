@@ -406,12 +406,13 @@ local function taskMultiPlant(task_id, plant_key)
     print("WAITING FOR CORDS, task_id=" .. tostring(task_id))
     local timer = os.time()
     local coords_str = nil
+    
     while os.time() - timer < 15 do
         local ev = table.pack(event.pull(1, "modem_message"))
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, r_id, r_coords = table.unpack(ev)
-            print("GOT: " .. tostring(msg) .. " id=" .. tostring(r_id))
-            if msg == "REPLACE_CORDS" and r_id == task_id then
+            -- Игнорируем ALIVE и прочий шум, ждем только свои координаты
+            if msg == "REPLACE_CORDS" and tonumber(r_id) == task_id then
                 coords_str = r_coords
                 print("FOUND CORDS!")
                 break
