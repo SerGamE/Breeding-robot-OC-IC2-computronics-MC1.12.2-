@@ -395,7 +395,6 @@ local function taskMultiPlant(task_id, plant_key)
     -- 5. Отправляем количество семян
     modem.broadcast(PORT, "SEEDS", task_id, #my_best_seeds)
 
-    -- 6. Если семян нет - НЕМЕДЛЕННО выходим (баг был тут, не было return)
     if #my_best_seeds == 0 then
         goHome()
         dropCargo()
@@ -403,18 +402,25 @@ local function taskMultiPlant(task_id, plant_key)
     end
 
     -- 7. Ждем ответ с координатами (с таймаутом 15 секунд)
+    term.clear()
+    print("WAITING FOR CORDS, task_id=" .. tostring(task_id))
     local timer = os.time()
     local coords_str = nil
     while os.time() - timer < 15 do
         local ev = table.pack(event.pull(1, "modem_message"))
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, r_id, r_coords = table.unpack(ev)
+            print("GOT: " .. tostring(msg) .. " id=" .. tostring(r_id))
             if msg == "REPLACE_CORDS" and r_id == task_id then
                 coords_str = r_coords
+                print("FOUND CORDS!")
                 break
             end
         end
     end
+
+    print("COORDS: " .. tostring(coords_str))
+    local choice = io.read()
 
     if coords_str then
         local coords = serialization.unserialize(coords_str)
