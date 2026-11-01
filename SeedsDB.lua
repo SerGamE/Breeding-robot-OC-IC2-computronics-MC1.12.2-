@@ -30,12 +30,12 @@ return {
     [ "redwheat" ] = { label = "Redwheat Seeds", stages = 7 }, -- Красная пшеница
     [ "venomilia" ] = { label = "Venomilia Seeds", stages = 5 }, -- Веномилия
     [ "eating" ] = { label = "Eating Plant Seeds", stages = 6 }, -- Плотоядное растение
-    -- Рудные / Металлические растения (Ванильный IC2)
-    [ "ferru" ] = { label = "Ferru Seeds", stages = 4 }, -- Феррий (Железо)
-    [ "cyprium" ] = { label = "Cyprium Seeds", stages = 4 }, -- Куприй (Медь)
-    [ "stagnium" ] = { label = "Stagnium Seeds", stages = 4 }, -- Стагний (Олово)
-    [ "plumbiscus" ] = { label = "Plumbiscus Seeds", stages = 4 }, -- Плюмбий (Свинец)
-    [ "aurelia" ] = { label = "Aurelia Seeds", stages = 5 }, -- Аурелия (Золото)
+    -- Рудные / Металлические растения (Ванильный IC2)stages на еденицу меньше, робот не ставит блоки под грядку.
+    [ "ferru" ] = { label = "Ferru Seeds", stages = 3 }, -- Феррий (Железо) 4
+    [ "cyprium" ] = { label = "Cyprium Seeds", stages = 3 }, -- Куприй (Медь)4
+    [ "stagnium" ] = { label = "Stagnium Seeds", stages = 3 }, -- Стагний (Олово)4
+    [ "plumbiscus" ] = { label = "Plumbiscus Seeds", stages = 3 }, -- Плюмбий (Свинец)4
+    [ "aurelia" ] = { label = "Aurelia Seeds", stages = 4 }, -- Аурелия (Золото)5
     -- ДЕРЕВЬЯ (Bonsai-жердочки из ванильного IC2 Experimental 1.12.2)
     [ "oak_sapling" ] = { label = "Oak Bonsai Seeds", stages = 4 }, -- Дуб
     [ "spruce_sapling" ] = { label = "Spruce Bonsai Seeds", stages = 4 }, -- Ель
@@ -50,7 +50,7 @@ return {
     [ "eggplant" ] = { label = "Eggplant Seeds", stages = 3 }, -- Egg plant (Баклажан)
     [ "corium" ] = { label = "Corium Seeds", stages = 4 }, -- Corium (Кожа)
     [ "corpse_plant" ] = { label = "Corpse Plant Seeds", stages = 4 }, -- Corpse Plant (Гнилая плоть)
-    [ "milk_wart" ] = { label = "Milk Wart Seeds", stages = 4 }, -- Milk Wart (молочный нарост)
+    [ "milk_wart" ] = { label = "Milk Wart Seeds", stages = 3 }, -- Milk Wart (молочный нарост)
     [ "meat_rose" ] = { label = "Meat Rose Seeds", stages = 4 }, -- Meat Rose (Сырое мясо)
     [ "spidernip" ] = { label = "Spidernip Seeds", stages = 4 }, -- Spidernip (Паучий глаз)
     [ "slime_plant" ] = { label = "Slime Plant Seeds", stages = 4 }, -- Slime Plant (Слизь)
