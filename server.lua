@@ -101,7 +101,7 @@ local function mainLoop()
                     setStatus(arg1, nil)
                     need_render = true
                 end
-
+                
             elseif msg == "SEEDS" then
                 if state.current_task and state.current_task.id == id then
                     local seeds_count = tonumber(arg1) or 0
@@ -126,8 +126,6 @@ local function mainLoop()
                         end
                     end
                 end
-            end
-
             elseif msg == "ALERT" then
                 ui.logChat("R<", "ERROR: " .. tostring(arg1))
                 need_render = true
