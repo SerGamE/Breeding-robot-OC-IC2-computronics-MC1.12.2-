@@ -401,27 +401,30 @@ local function taskMultiPlant(task_id, plant_key)
         return
     end
 
-    -- 7. Ждем ответ с координатами (с таймаутом 15 секунд)
-    term.clear()
-    print("WAITING FOR CORDS, task_id=" .. tostring(task_id))
-    local timer = os.time()
+    -- 6. Ждем ответ с координатами (БЛОКИРУЮЩИЙ ЦИКЛ)
+    -- Игнорируем всё, кроме наших координат. Выход только по ним или по таймауту.
+    local start_time = computer.uptime()
     local coords_str = nil
     
-    while os.time() - timer < 15 do
+    while true do
+        -- Ждем 1 секунду. Если события нет - проверяем таймаут.
         local ev = table.pack(event.pull(1, "modem_message"))
+        
+        -- Проверка на таймаут (15 секунд)
+        if computer.uptime() - start_time > 15 then
+            break
+        end
+        
         if ev[1] == "modem_message" then
             local _, _, _, _, _, msg, r_id, r_coords = table.unpack(ev)
-            -- Игнорируем ALIVE и прочий шум, ждем только свои координаты
+            
+            -- Проверяем, что это координаты для НАШЕЙ задачи
             if msg == "REPLACE_CORDS" and tonumber(r_id) == task_id then
                 coords_str = r_coords
-                print("FOUND CORDS!")
                 break
             end
         end
     end
-
-    print("COORDS: " .. tostring(coords_str))
-    local choice = io.read()
 
     if coords_str then
         local coords = serialization.unserialize(coords_str)
@@ -431,13 +434,13 @@ local function taskMultiPlant(task_id, plant_key)
                 local tx, tz = coord:match("(%d+),(%d+)")
                 walk(tonumber(tx), tonumber(tz))
                 
-                -- 8. Сносим родителя (или пустое место)
+                -- Сносим родителя (или пустое место)
                 if robot.detectDown() then
                     swingAxe(); os.sleep(1.0)
                 end
                 
-                -- 9. Ставим жердочку и сажаем
-                robot.select(1); robot.placeDown() -- одиночная (создастся при useDown)
+                -- Ставим жердочку и сажаем
+                robot.select(1); robot.placeDown() 
                 robot.select(1); inv.equip()
                 robot.useDown(); robot.useDown()
                 inv.equip()
@@ -449,7 +452,7 @@ local function taskMultiPlant(task_id, plant_key)
         end
     end
 
-    -- 11. Возврат и чистка (только после того, как всё посажено)
+    -- Возврат и чистка
     goHome()
     dropCargo()
 end
