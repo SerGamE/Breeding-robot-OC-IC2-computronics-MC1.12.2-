@@ -53,18 +53,7 @@ function tasks.getTask(state, CONFIG)
 
     if state.phase == "INIT" then return nil end
     
-    -- 5. MUTATION: Сбор семян новых видов
-    if state.phase == "MUTATION" then
-        for k, d in pairs(state.scan_data) do
-            if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
-                if d.sz >= d.max_stages then
-                    return "HARVEST_NEW", k, "NEW_SEEDS"
-                end
-            end
-        end
-    end
-    
-    -- 6. ПУСТЫЕ DBL (без 2 зрелых предков)
+    -- 5. ПУСТЫЕ DBL (без 2 зрелых предков)
     for k, st in pairs(state.cell_status) do
         if st == 2 and not state.locked[k] then
             local d = state.scan_data[k]
@@ -79,41 +68,19 @@ function tasks.getTask(state, CONFIG)
             end
         end
     end
-    
-    -- 7. EXCESS (для всех крестов, включая новые виды)
-    if state.phase == "SELECTION" or state.phase == "MUTATION" then
-        for k, d in pairs(state.scan_data) do
-            if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and not state.locked[k] then
-                if logic.isExcess(d, CONFIG) then
-                    return "DESTROY", k, "EXCESS"
-                end
-            end
-        end
-    end
-    
-    -- 8. NEW (снос любых новых видов в SELECTION)
-    if state.phase == "SELECTION" then
+
+    -- 6. MUTATION: Сбор семян новых видов
+    if state.phase == "MUTATION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
-                if CONFIG.new_species == "destroy" then return "DESTROY", k, "NEW" end
-            end
-        end
-    end
-    
-    -- 9. WEAK (только для crop_id на крестах в SELECTION и MUTATION)
-    if state.phase == "SELECTION" or state.phase == "MUTATION" then
-        for k, d in pairs(state.scan_data) do
-            if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and not state.locked[k] then
-                local parents = {}
-                for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
+                if d.sz >= d.max_stages then
+                    return "HARVEST_NEW", k, "NEW_SEEDS"
                 end
-                if logic.classify(d, parents, CONFIG) == "WEAK" then return "DESTROY", k, "WEAK" end
             end
         end
     end
-    
-    -- 10. MultiPlant (замена/заполнение)
+
+    -- 7. MultiPlant (замена/заполнение)
     if state.phase == "SELECTION" or state.phase == "MUTATION" then
         local need_replace = false
         for pk, st in pairs(state.cell_status) do
@@ -139,6 +106,39 @@ function tasks.getTask(state, CONFIG)
         end
     end
 
+    -- 8. EXCESS (для всех крестов, включая новые виды)
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
+        for k, d in pairs(state.scan_data) do
+            if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and not state.locked[k] then
+                if logic.isExcess(d, CONFIG) then
+                    return "DESTROY", k, "EXCESS"
+                end
+            end
+        end
+    end
+    
+    -- 9. NEW (снос любых новых видов в SELECTION)
+    if state.phase == "SELECTION" then
+        for k, d in pairs(state.scan_data) do
+            if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
+                if CONFIG.new_species == "destroy" then return "DESTROY", k, "NEW" end
+            end
+        end
+    end
+    
+    -- 10. WEAK (только для crop_id на крестах в SELECTION и MUTATION)
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
+        for k, d in pairs(state.scan_data) do
+            if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and not state.locked[k] then
+                local parents = {}
+                for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
+                end
+                if logic.classify(d, parents, CONFIG) == "WEAK" then return "DESTROY", k, "WEAK" end
+            end
+        end
+    end
+    
     -- 11. MUTATION: Сбор ТОП семян (если все родители target)
     if state.phase == "MUTATION" then
         local need_replace = false

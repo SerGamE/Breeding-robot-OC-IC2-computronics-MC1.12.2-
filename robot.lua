@@ -395,13 +395,14 @@ local function taskMultiPlant(task_id, plant_key)
     -- 5. Отправляем количество семян
     modem.broadcast(PORT, "SEEDS", task_id, #my_best_seeds)
 
+    -- 6. Если семян нет - НЕМЕДЛЕННО выходим (баг был тут, не было return)
     if #my_best_seeds == 0 then
         goHome()
         dropCargo()
         return
     end
 
-    -- 6. Ждем ответ с координатами (с таймаутом 15 секунд)
+    -- 7. Ждем ответ с координатами (с таймаутом 15 секунд)
     local timer = os.time()
     local coords_str = nil
     while os.time() - timer < 15 do
@@ -441,7 +442,7 @@ local function taskMultiPlant(task_id, plant_key)
         end
     end
 
-    -- 11. Возврат и чистка
+    -- 11. Возврат и чистка (только после того, как всё посажено)
     goHome()
     dropCargo()
 end
