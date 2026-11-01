@@ -21,7 +21,7 @@ local PORT = 109
 local WAKE_MSG = "WAKE_UP_MAN"
 local WAYPOINT_LABEL = "CHICHI"
 local HOME_FACING = 3 -- 3 = глобальный Юг
-local MIN_STICKS = 1
+local MIN_STICKS = 2
 
 local SLOT_STICK = 1
 local SLOT_AXE   = 2
@@ -244,7 +244,17 @@ end
 -- БЛОК 6: ДЕЙСТВИЯ
 -- ==============================================================================
 local function swingAxe() robot.select(2); inv.equip(); robot.swingDown(); inv.equip(); robot.select(1) end
-local function placeDoubleCrop() robot.select(1); inv.equip(); robot.useDown(); robot.useDown(); inv.equip(); robot.select(1) end
+local function placeDoubleCrop()
+    -- Защита: нужно минимум 2 жердочки
+    if robot.count(1) < 2 then 
+        return false 
+    end
+    
+    robot.select(1); inv.equip()
+    robot.useDown(); robot.useDown()
+    inv.equip(); robot.select(1)
+    return true
+end
 
 local function dropExcessSticks()
     local stick_slots = {}
@@ -345,6 +355,7 @@ local function taskHarvestSeeds(task_id, plant_key, chest_coords)
     end
     -- 3. Сносим растение
     swingAxe(); os.sleep(1.5)
+    placeDoubleCrop() --Ставим двойную жердочку на место снесенного
     -- 4. Проверяем, что упало в пустые слоты
     local my_seeds_slots = {}
     for _, slot in ipairs(my_empty_slots) do
@@ -382,7 +393,7 @@ local function taskMultiPlant(task_id, plant_key)
 
     -- 3. Сносим растение
     swingAxe(); os.sleep(1.5)
-
+    --placeDoubleCrop() --Ставим двойную жердочку. Пока вырублю, операция долгая, могут аозникнуть g24/WEED
     -- 4. Ищем семена
     local my_best_seeds = {}
     for _, slot in ipairs(my_empty_slots) do
