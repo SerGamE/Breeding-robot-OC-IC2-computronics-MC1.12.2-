@@ -434,19 +434,18 @@ local function taskMultiPlant(task_id, plant_key)
                 local tx, tz = coord:match("(%d+),(%d+)")
                 walk(tonumber(tx), tonumber(tz))
                 
-                -- Сносим родителя (или пустое место)
+                -- 1. Сносим слабого родителя (если он там есть)
                 if robot.detectDown() then
                     swingAxe(); os.sleep(1.0)
                 end
                 
-                -- Ставим жердочку и сажаем
-                robot.select(1); robot.placeDown() 
-                robot.select(1); inv.equip()
-                robot.useDown(); robot.useDown()
-                inv.equip()
+                -- 2. Ставим ОДИНАРНУЮ жердочку и сажаем семена
+                robot.select(1)
+                robot.placeDown() -- ставит 1 жердочку (одинарную)
                 
                 robot.select(slot)
-                robot.placeDown()
+                robot.placeDown() -- сажает семена
+                
                 robot.select(1)
             end
         end
