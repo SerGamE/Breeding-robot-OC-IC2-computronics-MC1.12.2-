@@ -1,5 +1,6 @@
 local scanner = require("scanner")
 local logic = require("logic")
+local serialization = require("serialization")
 local tasks = {}
 
 function tasks.getTask(state, CONFIG)
