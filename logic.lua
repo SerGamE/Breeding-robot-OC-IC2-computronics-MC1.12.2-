@@ -138,8 +138,8 @@ function logic.classify(c, parents, CONFIG, has_empty_parents)
     -- 6. Если равен самому сильному родителю (все гены == max)
     if has_empty_parents then
         return "CANDIDATE" -- Есть куда посадить, пусть растет
-    else
-        return "WEAK" -- Мест нет, такой же не нужен
+    --else -- Пока вырублю это , но оставлю про запас
+        --return "WEAK" -- Мест нет, такой же не нужен
     end
 end
 
