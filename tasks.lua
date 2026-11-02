@@ -3,6 +3,7 @@ local logic = require("logic")
 local serialization = require("serialization")
 local map_manager = require("map_manager")
 local ui = require("ui")
+local computer = require("computer")
 local tasks = {}
 
 local function invertMap(state)
@@ -11,7 +12,8 @@ local function invertMap(state)
         elseif st == 2 then state.cell_status[k] = 1 end
     end
     map_manager.save(state)
-    ui.logChat("S","Карта инвертирована и сохранена в map.lua!")
+    state.last_invert_time = computer.uptime() -- Запоминаем время
+    ui.logChat("S", "ШАХМАТКА ИНВЕРТИРОВАНА!")
 end
 
 function tasks.getTask(state, CONFIG)
@@ -238,32 +240,37 @@ function tasks.getTask(state, CONFIG)
     end
     
     -- 11.5. BREEDING: Проверка на необходимость инверсии шахматки
-    if state.phase == "BREEDING" and not state.inverted_recently then
-        local crosses_crop = 0
-        local parents_crop = 0
-        local growing_crosses = 0
+    if state.phase == "BREEDING" then
+        -- Защита от двойной инверсии (не чаще раза в 10 секунды)
+        local can_invert = (computer.uptime() - (state.last_invert_time or 0) > 10)
+        
+        if can_invert then
+            local crosses_crop = 0
+            local parents_crop = 0
+            local growing_crosses = 0
 
-        for k, d in pairs(state.scan_data) do
-            if d.id == CONFIG.crop_id then
-                if state.cell_status[k] == 2 then 
-                    crosses_crop = crosses_crop + 1
-                    if d.sz < d.max_stages then growing_crosses = growing_crosses + 1 end
-                elseif state.cell_status[k] == 1 then 
-                    parents_crop = parents_crop + 1 
+            for k, d in pairs(state.scan_data) do
+                if d.id == CONFIG.crop_id then
+                    if state.cell_status[k] == 2 then 
+                        crosses_crop = crosses_crop + 1
+                        if d.sz < d.max_stages then growing_crosses = growing_crosses + 1 end
+                    elseif state.cell_status[k] == 1 then 
+                        parents_crop = parents_crop + 1 
+                    end
                 end
             end
-        end
 
-        if crosses_crop >= 1 and parents_crop == 0 then
-            invertMap(state)
-            state.inverted_recently = true -- БЛОКИРУЕМ ПОВТОР
-            return nil
-        end
+            -- Сценарий Б: 1 крест, 0 родителей
+            if crosses_crop >= 1 and parents_crop == 0 then
+                invertMap(state)
+                return nil
+            end
 
-        if crosses_crop >= 1 and parents_crop >= 1 and growing_crosses == 0 then
-            invertMap(state)
-            state.inverted_recently = true -- БЛОКИРУЕМ ПОВТОР
-            return nil
+            -- Сценарий А+В: есть родитель, все дети выросли
+            if crosses_crop >= 1 and parents_crop >= 1 and growing_crosses == 0 then
+                invertMap(state)
+                return nil
+            end
         end
     end
 
