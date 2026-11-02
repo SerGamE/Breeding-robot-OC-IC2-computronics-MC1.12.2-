@@ -99,7 +99,27 @@ function tasks.getTask(state, CONFIG)
                         if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
                     end
                     if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
-                        return "MULTI_PLANT", k, "MULTI"
+                        -- Ищем до 3 слабых родителей
+                        local candidates = {}
+                        for pk, st in pairs(state.cell_status) do
+                            if st == 1 and not state.locked[pk] then
+                                local pd = state.scan_data[pk]
+                                local score = -1
+                                if pd and pd.id == CONFIG.crop_id then score = (pd.g or 0) + (pd.ga or 0) + (pd.r or 0) end
+                                table.insert(candidates, {key=pk, score=score})
+                            end
+                        end
+                        table.sort(candidates, function(a,b) return a.score < b.score end)
+                        
+                        local targets = {}
+                        for i = 1, math.min(3, #candidates) do 
+                            table.insert(targets, candidates[i].key) 
+                        end
+                        
+                        if #targets > 0 then
+                            local targets_str = serialization.serialize(targets)
+                            return "MULTI_PLANT", k, targets_str
+                        end
                     end
                 end
             end

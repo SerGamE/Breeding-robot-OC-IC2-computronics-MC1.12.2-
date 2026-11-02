@@ -378,12 +378,11 @@ local function taskHarvestSeeds(task_id, plant_key, chest_coords)
     dropCargo()
 end
 
-local function taskMultiPlant(task_id, plant_key)
-    -- 1. Идем к растению
+local function taskMultiPlant(task_id, plant_key, targets_str)
+    local targets = serialization.unserialize(targets_str)
     local x, z = plant_key:match("(%d+),(%d+)")
     walk(tonumber(x), tonumber(z))
 
-    -- 2. Список пустых слотов
     local my_empty_slots = {}
     for slot = 3, robot.inventorySize() do
         if inv.getStackInInternalSlot(slot) == nil then
@@ -391,10 +390,8 @@ local function taskMultiPlant(task_id, plant_key)
         end
     end
 
-    -- 3. Сносим растение
-    swingAxe(); os.sleep(1.5)
-    --placeDoubleCrop() --Ставим двойную жердочку. Пока вырублю, операция долгая, могут аозникнуть g24/WEED
-    -- 4. Ищем семена
+    swingAxe(); os.sleep(0.8)
+
     local my_best_seeds = {}
     for _, slot in ipairs(my_empty_slots) do
         local s = inv.getStackInInternalSlot(slot)
@@ -403,66 +400,32 @@ local function taskMultiPlant(task_id, plant_key)
         end
     end
 
-    -- 5. Отправляем количество семян
-    modem.broadcast(PORT, "SEEDS", task_id, #my_best_seeds)
-
-    if #my_best_seeds == 0 then
-        goHome()
-        dropCargo()
-        return
-    end
-
-    -- 6. Ждем ответ с координатами (БЛОКИРУЮЩИЙ ЦИКЛ)
-    -- Игнорируем всё, кроме наших координат. Выход только по ним или по таймауту.
-    local start_time = computer.uptime()
-    local coords_str = nil
-    
-    while true do
-        -- Ждем 1 секунду. Если события нет - проверяем таймаут.
-        local ev = table.pack(event.pull(1, "modem_message"))
+    for i, target_key in ipairs(targets) do
+        if #my_best_seeds == 0 then break end
         
-        -- Проверка на таймаут (15 секунд)
-        if computer.uptime() - start_time > 15 then
-            break
+        local tx, tz = target_key:match("(%d+),(%d+)")
+        walk(tonumber(tx), tonumber(tz))
+        
+        if robot.detectDown() then
+            swingAxe(); os.sleep(0.8)
         end
         
-        if ev[1] == "modem_message" then
-            local _, _, _, _, _, msg, r_id, r_coords = table.unpack(ev)
-            
-            -- Проверяем, что это координаты для НАШЕЙ задачи
-            if msg == "REPLACE_CORDS" and tonumber(r_id) == task_id then
-                coords_str = r_coords
-                break
-            end
-        end
+        robot.select(1); robot.placeDown()
+        
+        local seed_slot = table.remove(my_best_seeds, 1)
+        robot.select(seed_slot); robot.placeDown()
+        robot.select(1)
     end
 
-    if coords_str then
-        local coords = serialization.unserialize(coords_str)
-        for i, coord in ipairs(coords) do
-            local slot = my_best_seeds[i]
-            if slot then
-                local tx, tz = coord:match("(%d+),(%d+)")
-                walk(tonumber(tx), tonumber(tz))
-                
-                -- 1. Сносим слабого родителя (если он там есть)
-                if robot.detectDown() then
-                    swingAxe(); os.sleep(1.0)
-                end
-                
-                -- 2. Ставим ОДИНАРНУЮ жердочку и сажаем семена
-                robot.select(1)
-                robot.placeDown() -- ставит 1 жердочку (одинарную)
-                
-                robot.select(slot)
-                robot.placeDown() -- сажает семена
-                
-                robot.select(1)
-            end
+    -- Если семена остались - скидываем в сундук 4
+    if #my_best_seeds > 0 then
+        walk(CHEST_TOP.x, CHEST_TOP.z)
+        for _, slot in ipairs(my_best_seeds) do
+            robot.select(slot); robot.dropDown()
         end
+        robot.select(1)
     end
 
-    -- Возврат и чистка
     goHome()
     dropCargo()
 end
@@ -505,7 +468,7 @@ local function processCommand(task_id, action, key, arg2)
         elseif action == "DESTROY" then taskDestroy(task_id, key)
         elseif action == "CLEAR" then taskClear(task_id, key)
         elseif action == "WEED" then taskWeed(task_id, key)
-        elseif action == "MULTI_PLANT" then taskMultiPlant(task_id, key)
+        elseif action == "MULTI_PLANT" then taskMultiPlant(task_id, key, arg2) -- Добавили arg2
         elseif action == "EMERGENCY_CLEAR" then taskEmergencyClear(task_id, key)
         elseif action == "HARVEST_NEW" then taskHarvestSeeds(task_id, key, CHEST_NEW)
         elseif action == "HARVEST_TOP" then taskHarvestSeeds(task_id, key, CHEST_TOP)

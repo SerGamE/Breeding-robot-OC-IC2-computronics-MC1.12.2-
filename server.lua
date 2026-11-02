@@ -192,12 +192,16 @@ local function mainLoop()
                 state.current_task = { id = state.task_counter, key = key, action = action, taken = false }
                 state.locked[key] = true
 
-                setStatus(key, display_status)
+                -- Для MULTI_PLANT display_status - это список координат (строка)
+                -- На экран выводим просто "MULTI" для красоты
+                local screen_status = (action == "MULTI_PLANT") and "MULTI" or display_status
+                setStatus(key, screen_status)
                 ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
                 
                 if state.phase == "EMERGENCY" then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
                 else
+                    -- display_status здесь несет строку координат для MULTI_PLANT
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, action, key, display_status)
                 end
                 need_render = true
