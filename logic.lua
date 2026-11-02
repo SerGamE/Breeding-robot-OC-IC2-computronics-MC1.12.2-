@@ -108,15 +108,12 @@ function logic.classify(c, parents, CONFIG, has_empty_parents)
     if c.g > CONFIG.target.g or c.ga > CONFIG.target.ga or c.r > CONFIG.target.r then 
         return "EXCESS" 
     end
-    
     -- 2. Если точно равен target (или больше/равен по всем) - идеал
     if c.g >= CONFIG.target.g and c.ga >= CONFIG.target.ga and c.r >= CONFIG.target.r then 
         return "CANDIDATE" 
     end
-    
     -- Если родителей нет, сравнить не с чем. Считаем сильным (чтобы посадить)
     if #parents == 0 then return "CANDIDATE" end
-    
     -- 3. Ищем максимумы по каждому гену среди всех родителей
     local max_g, max_ga, max_r = 0, 0, 0
     for _, p in ipairs(parents) do
@@ -124,22 +121,19 @@ function logic.classify(c, parents, CONFIG, has_empty_parents)
         if p.ga > max_ga then max_ga = p.ga end
         if p.r > max_r then max_r = p.r end
     end
-    
     -- 4. Если хотя бы один ген упал (меньше лучшего родителя) - WEAK
     if c.g < max_g or c.ga < max_ga or c.r < max_r then 
         return "WEAK" 
     end
-    
     -- 5. Если все гены >= лучших, и хотя бы один > (поднялся) - CANDIDATE
     if c.g > max_g or c.ga > max_ga or c.r > max_r then 
         return "CANDIDATE" 
     end
-    
     -- 6. Если равен самому сильному родителю (все гены == max)
-    if has_empty_parents then
+    if has_empty_parents then -- ечли нужно чоб сносило ребенка равного родителю,- разкоментировать блок else
         return "CANDIDATE" -- Есть куда посадить, пусть растет
     --else -- Пока вырублю это , но оставлю про запас
-        --return "WEAK" -- Мест нет, такой же не нужен
+        --return "WEAK" -- Мест нет, такой же не нужен, нужен сильнее.
     end
 end
 
