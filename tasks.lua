@@ -241,13 +241,14 @@ function tasks.getTask(state, CONFIG)
     
     -- 11.5. BREEDING: Проверка на необходимость инверсии шахматки
     if state.phase == "BREEDING" then
-        -- Защита от двойной инверсии (не чаще раза в 10 секунды)
+        -- Защита от двойной инверсии (не чаще раза в 10 секунд)
         local can_invert = (computer.uptime() - (state.last_invert_time or 0) > 10)
         
         if can_invert then
             local crosses_crop = 0
             local parents_crop = 0
             local growing_crosses = 0
+            local empty_crosses = 0
 
             for k, d in pairs(state.scan_data) do
                 if d.id == CONFIG.crop_id then
@@ -260,14 +261,26 @@ function tasks.getTask(state, CONFIG)
                 end
             end
 
+            -- Считаем пустые кресты (где стоят DBL, но растения нет)
+            for k, st in pairs(state.cell_status) do
+                if st == 2 then
+                    local d = state.scan_data[k]
+                    -- Если есть компонент, но пусто (id == "") или компонента вообще нет (nil)
+                    -- Но нам важны только те, где уже стоят DBL, чтобы не ждать вечно пустую землю
+                    if d and d.id == "" then
+                        empty_crosses = empty_crosses + 1
+                    end
+                end
+            end
+
             -- Сценарий Б: 1 крест, 0 родителей
             if crosses_crop >= 1 and parents_crop == 0 then
                 invertMap(state)
                 return nil
             end
 
-            -- Сценарий А+В: есть родитель, все дети выросли
-            if crosses_crop >= 1 and parents_crop >= 1 and growing_crosses == 0 then
+            -- Сценарий А+В: есть родители и дети. Ждем, пока ВСЕ дети вырастут и не будет пустых DBL
+            if crosses_crop >= 2 and parents_crop >= 1 and growing_crosses == 0 and empty_crosses == 0 then
                 invertMap(state)
                 return nil
             end
