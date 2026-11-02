@@ -2,6 +2,7 @@ local scanner = require("scanner")
 local logic = require("logic")
 local serialization = require("serialization")
 local map_manager = require("map_manager")
+local ui = require("ui")
 local tasks = {}
 
 local function invertMap(state)
@@ -10,7 +11,7 @@ local function invertMap(state)
         elseif st == 2 then state.cell_status[k] = 1 end
     end
     map_manager.save(state)
-    print("[TASKS] Карта инвертирована и сохранена в map.lua!")
+    ui.logChat("S","Карта инвертирована и сохранена в map.lua!")
 end
 
 function tasks.getTask(state, CONFIG)
