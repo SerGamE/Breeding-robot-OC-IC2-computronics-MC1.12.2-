@@ -182,6 +182,43 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
+    -- 11.5 BREEDING: Одинокий новый вид (сбор семян)
+    if state.phase == "BREEDING" then
+        for k, d in pairs(state.scan_data) do
+            if d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id then
+                if d.sz >= d.max_stages and not state.locked[k] then
+                    return "HARVEST_NEW", k, "NEW_SEEDS"
+                end
+            end
+        end
+    end
+
+    -- 11.6 BREEDING: Установка DBL вокруг одинокого родителя
+    if state.phase == "BREEDING" then
+        -- Находим нашего единственного родителя
+        local solo_key = nil
+        for k, d in pairs(state.scan_data) do
+            if d.id == CONFIG.crop_id and d.sz >= d.max_stages and not state.locked[k] then 
+                solo_key = k; break 
+            end
+        end
+        
+        if solo_key then
+            local x, z = solo_key:match("(%d+),(%d+)")
+            -- Ищем пустые кресты-соседи
+            for _, dir in ipairs({{1,0},{-1,0},{0,1},{0,-1}}) do
+                local nk = string.format("%d,%d", tonumber(x)+dir[1], tonumber(z)+dir[2])
+                if state.cell_status[nk] == 2 and not state.locked[nk] then
+                    local nd = state.scan_data[nk]
+                    -- Если сосед-крест пустой (нет компонента) - ставим DBL
+                    if not nd then
+                        return "PLACE_DOUBLE", nk, "BREED_DBL"
+                    end
+                end
+            end
+        end
+    end
+
     -- 12. УСТАНОВКА DBL
     if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
         for k, st in pairs(state.cell_status) do
