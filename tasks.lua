@@ -238,7 +238,7 @@ function tasks.getTask(state, CONFIG)
     end
     
     -- 11.5. BREEDING: Проверка на необходимость инверсии шахматки
-    if state.phase == "BREEDING" then
+    if state.phase == "BREEDING" and not state.inverted_recently then
         local crosses_crop = 0
         local parents_crop = 0
         local growing_crosses = 0
@@ -247,7 +247,6 @@ function tasks.getTask(state, CONFIG)
             if d.id == CONFIG.crop_id then
                 if state.cell_status[k] == 2 then 
                     crosses_crop = crosses_crop + 1
-                    -- Если крест недозрелый, запоминаем
                     if d.sz < d.max_stages then growing_crosses = growing_crosses + 1 end
                 elseif state.cell_status[k] == 1 then 
                     parents_crop = parents_crop + 1 
@@ -255,16 +254,15 @@ function tasks.getTask(state, CONFIG)
             end
         end
 
-        -- Сценарий Б: всего 1 крест и 0 родителей (сразу инвертируем)
         if crosses_crop >= 1 and parents_crop == 0 then
             invertMap(state)
+            state.inverted_recently = true -- БЛОКИРУЕМ ПОВТОР
             return nil
         end
 
-        -- Сценарий А+В: есть родитель (1 или больше) и есть дети-кресты. 
-        -- Если ВСЕ дети уже выросли (нет недозрелых) — инвертируем.
         if crosses_crop >= 1 and parents_crop >= 1 and growing_crosses == 0 then
             invertMap(state)
+            state.inverted_recently = true -- БЛОКИРУЕМ ПОВТОР
             return nil
         end
     end

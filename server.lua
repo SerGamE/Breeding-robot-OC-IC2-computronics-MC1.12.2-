@@ -17,7 +17,7 @@ local tasks       = require("tasks")
 local modem = component.modem
 
 local state = {
-    phase = "INIT",
+    phase = "INIT",     inverted_recently = false,
     crop_matrix = {}, cell_status = {}, scan_data = {}, status_line = {}, locked = {},
     task_counter = 0, current_task = nil,
     busy = false, busy_uptime = 0,
@@ -175,7 +175,13 @@ local function mainLoop()
         if computer.uptime() - last_phase_check >= 5 then
             if state.phase ~= "EMERGENCY" then
                 local phase_msg = logic.checkPhase(state, CONFIG)
-                if phase_msg then ui.logChat("S", "Phase -> " .. phase_msg) end
+                if phase_msg then 
+                    ui.logChat("S", "Phase -> " .. phase_msg) 
+                end
+                -- Если вышли из BREEDING, снимаем блокировку
+                if state.phase ~= "BREEDING" then
+                    state.inverted_recently = false
+                end
             end
             last_phase_check = computer.uptime()
             need_render = true
