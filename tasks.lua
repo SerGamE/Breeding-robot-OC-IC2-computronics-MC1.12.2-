@@ -1,7 +1,17 @@
 local scanner = require("scanner")
 local logic = require("logic")
 local serialization = require("serialization")
+local map_manager = require("map_manager")
 local tasks = {}
+
+local function invertMap(state)
+    for k, st in pairs(state.cell_status) do
+        if st == 1 then state.cell_status[k] = 2
+        elseif st == 2 then state.cell_status[k] = 1 end
+    end
+    map_manager.save(state)
+    print("[TASKS] Карта инвертирована и сохранена в map.lua!")
+end
 
 function tasks.getTask(state, CONFIG)
     -- 1. РЕЖИМ EMERGENCY (ТОЛЬКО EMERGENCY_CLEAR)
@@ -27,6 +37,24 @@ function tasks.getTask(state, CONFIG)
             if d.id == "" and state.cell_status[k] == 1 and not state.locked[k] then return "EMERGENCY_CLEAR", k, "EMERG_STICK_P" end
         end
         return nil
+    end
+    -- 1.5. BREEDING: Единственное растение не crop_id - снести в сундук 3
+    if state.phase == "BREEDING" then
+        local total_crop = 0
+        local single_plant_key = nil
+        for k, d in pairs(state.scan_data) do
+            if d.id ~= "" and d.id ~= "weed" then
+                total_crop = total_crop + 1
+                single_plant_key = k
+            end
+        end
+        
+        if total_crop == 1 and single_plant_key then
+            local d = state.scan_data[single_plant_key]
+            if d.id ~= CONFIG.crop_id and d.sz >= d.max_stages then
+                return "HARVEST_NEW", single_plant_key, "NEW_SEEDS"
+            end
+        end
     end
 
     -- 2. G24 (в штатных режимах)
@@ -182,8 +210,52 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
+    -- 11.5. BREEDING: Проверка на необходимость инверсии шахматки
+    if state.phase == "BREEDING" then
+        local crosses_crop = 0
+        local parents_crop = 0
+        local empty_dbl_with_parent = 0
+        local growing_dbl_with_parent = 0
+
+        for k, d in pairs(state.scan_data) do
+            if d.id == CONFIG.crop_id then
+                if state.cell_status[k] == 2 then crosses_crop = crosses_crop + 1
+                elseif state.cell_status[k] == 1 then parents_crop = parents_crop + 1 end
+            end
+        end
+
+        -- Смотрим на пустые или недозрелые DBL вокруг родителей
+        for k, st in pairs(state.cell_status) do
+            if st == 2 and not state.locked[k] then
+                local d = state.scan_data[k]
+                if not d or (d.id == CONFIG.crop_id and d.sz < d.max_stages) then
+                    -- Проверяем, есть ли рядом зрелый родитель crop_id
+                    local has_parent = false
+                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                            has_parent = true; break 
+                        end
+                    end
+                    
+                    if has_parent then
+                        if not d then
+                            empty_dbl_with_parent = empty_dbl_with_parent + 1
+                        else
+                            growing_dbl_with_parent = growing_dbl_with_parent + 1
+                        end
+                    end
+                end
+            end
+        end
+        if crosses_crop >= 2 and parents_crop == 0 and empty_dbl_with_parent == 0 and growing_dbl_with_parent == 0 then
+            invertMap(state)
+            return nil
+        end
+    end
+
     -- 12. УСТАНОВКА DBL
-    if state.phase == "SELECTION" or state.phase == "BREEDING" or state.phase == "MUTATION" then
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
+        -- Ставим DBL только если 2+ зрелых родителя (для скрещивания)
         for k, st in pairs(state.cell_status) do
             if st == 2 and not state.locked[k] then
                 local d = state.scan_data[k]
@@ -195,6 +267,22 @@ function tasks.getTask(state, CONFIG)
                         end
                     end
                     if mature >= 2 then return "PLACE_DOUBLE", k, "PLACE_DBL" end
+                end
+            end
+        end
+    elseif state.phase == "BREEDING" then
+        -- В BREEDING ставим DBL, если рядом есть хотя бы 1 зрелый родитель
+        for k, st in pairs(state.cell_status) do
+            if st == 2 and not state.locked[k] then
+                local d = state.scan_data[k]
+                if not d then
+                    local mature = 0
+                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
+                            mature = mature + 1 
+                        end
+                    end
+                    if mature >= 1 then return "PLACE_DOUBLE", k, "PLACE_DBL" end
                 end
             end
         end
