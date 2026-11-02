@@ -82,18 +82,44 @@ function tasks.getTask(state, CONFIG)
 
     if state.phase == "INIT" then return nil end
     
-    -- 5. ПУСТЫЕ DBL (без 2 зрелых предков)
-    for k, st in pairs(state.cell_status) do
-        if st == 2 and not state.locked[k] then
-            local d = state.scan_data[k]
-            if d and d.id == "" then
-                local mature = 0
-                for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                    if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
-                        mature = mature + 1 
+    -- 5. НЕВАЛИДНЫЕ DBL
+    if state.phase == "SELECTION" or state.phase == "MUTATION" then
+        -- В SELECTION/MUTATION сносим, если меньше 2 зрелых предков
+        for k, st in pairs(state.cell_status) do
+            if st == 2 and not state.locked[k] then
+                local d = state.scan_data[k]
+                if d and d.id == "" then
+                    local mature = 0
+                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then mature = mature + 1 end
                     end
+                    if mature < 2 then return "CLEAR", k, "CLEAR" end
                 end
-                if mature < 2 then return "CLEAR", k, "CLEAR" end
+            end
+        end
+    elseif state.phase == "BREEDING" then
+        -- В BREEDING сносим DBL, если не соблюдено правило: ровно 1 родитель и 3 пустые стороны
+        for k, st in pairs(state.cell_status) do
+            if st == 2 and not state.locked[k] then
+                local d = state.scan_data[k]
+                if d and d.id == "" then
+                    local mature = 0
+                    local blocked = 0
+                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
+                        local nd = state.scan_data[nk]
+                        if state.cell_status[nk] == 1 and nd and nd.id == CONFIG.crop_id and nd.sz >= nd.max_stages then
+                            mature = mature + 1
+                        elseif nd and nd.id ~= "" then
+                            -- Любое другое растение (или незрелый родитель) блокирует размножение
+                            blocked = blocked + 1
+                        elseif nd and nd.id == "" then
+                            -- Другая жердочка рядом тоже блокирует
+                            blocked = blocked + 1
+                        end
+                    end
+                    -- Если не ровно 1 родитель или есть блокирующие факторы - сносим
+                    if mature ~= 1 or blocked > 0 then return "CLEAR", k, "CLEAR" end
+                end
             end
         end
     end
@@ -214,43 +240,37 @@ function tasks.getTask(state, CONFIG)
     if state.phase == "BREEDING" then
         local crosses_crop = 0
         local parents_crop = 0
-        local empty_dbl_with_parent = 0
-        local growing_dbl_with_parent = 0
+        local empty_dbl = 0
+        local growing_crosses = 0
 
         for k, d in pairs(state.scan_data) do
             if d.id == CONFIG.crop_id then
-                if state.cell_status[k] == 2 then crosses_crop = crosses_crop + 1
-                elseif state.cell_status[k] == 1 then parents_crop = parents_crop + 1 end
-            end
-        end
-
-        -- Ищем пустые или недозрелые DBL вокруг родителей (сценарий А)
-        for k, st in pairs(state.cell_status) do
-            if st == 2 and not state.locked[k] then
-                local d = state.scan_data[k]
-                if not d or (d.id == CONFIG.crop_id and d.sz < d.max_stages) then
-                    local has_parent = false
-                    for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
-                        if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
-                            has_parent = true; break 
-                        end
-                    end
-                    if has_parent then
-                        if not d then empty_dbl_with_parent = empty_dbl_with_parent + 1
-                        else growing_dbl_with_parent = growing_dbl_with_parent + 1 end
-                    end
+                if state.cell_status[k] == 2 then 
+                    crosses_crop = crosses_crop + 1
+                    if d.sz < d.max_stages then growing_crosses = growing_crosses + 1 end
+                elseif state.cell_status[k] == 1 then 
+                    parents_crop = parents_crop + 1 
                 end
             end
         end
 
-        -- СЦЕНАРИЙ Б: Всего 1 крест и 0 родителей -> инвертируем сразу
+        -- Проверяем, есть ли еще пустые DBL, которые должны зарасти
+        for k, st in pairs(state.cell_status) do
+            if st == 2 then
+                local d = state.scan_data[k]
+                if not d or (d.id == "" ) then empty_dbl = empty_dbl + 1 end
+            end
+        end
+
+        -- Сценарий Б: всего 1 крест и 0 родителей
         if crosses_crop == 1 and parents_crop == 0 then
             invertMap(state)
             return nil
         end
 
-        -- СЦЕНАРИЙ А: 2+ креста, 0 родителей, все двойные жердочки заросли -> инвертируем
-        if crosses_crop >= 2 and parents_crop == 0 and empty_dbl_with_parent == 0 and growing_dbl_with_parent == 0 then
+        -- Сценарий А: есть и родители, и кресты (дети). 
+        -- Ждем, пока все дети вырастут и не останется пустых DBL.
+        if crosses_crop >= 1 and parents_crop >= 1 and empty_dbl == 0 and growing_crosses == 0 then
             invertMap(state)
             return nil
         end
