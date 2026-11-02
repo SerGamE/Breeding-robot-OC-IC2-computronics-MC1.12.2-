@@ -156,7 +156,7 @@ function tasks.getTask(state, CONFIG)
                     for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
                         if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
                     end
-                    if logic.classify(d, parents, CONFIG) == "CANDIDATE" then
+                    if logic.classify(d, parents, CONFIG, need_replace) == "CANDIDATE" then
                         -- Ищем до 3 слабых родителей
                         local candidates = {}
                         for pk, st in pairs(state.cell_status) do
@@ -204,15 +204,26 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 10. WEAK (только для crop_id на крестах в SELECTION и MUTATION)
+    -- 10. WEAK
     if state.phase == "SELECTION" or state.phase == "MUTATION" then
+        -- Вычисляем, есть ли пустые родительские места (один раз перед циклом)
+        local has_empty_parents = false
+        for pk, st in pairs(state.cell_status) do
+            if st == 1 then
+                local pd = state.scan_data[pk]
+                if not pd or pd.id ~= CONFIG.crop_id then 
+                    has_empty_parents = true; break 
+                end
+            end
+        end
+
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id == CONFIG.crop_id and not state.locked[k] then
                 local parents = {}
                 for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
                     if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id then table.insert(parents, state.scan_data[nk]) end
                 end
-                if logic.classify(d, parents, CONFIG) == "WEAK" then return "DESTROY", k, "WEAK" end
+                if logic.classify(d, parents, CONFIG, has_empty_parents) == "WEAK" then return "DESTROY", k, "WEAK" end
             end
         end
     end

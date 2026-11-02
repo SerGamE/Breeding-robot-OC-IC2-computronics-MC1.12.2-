@@ -103,31 +103,44 @@ function logic.checkPhase(state, CONFIG)
     return nil
 end
 
-function logic.classify(c, parents, CONFIG)
-    -- Если достиг target — идеален, не WEAK
-    if c.g >= CONFIG.target.g and c.ga >= CONFIG.target.ga and c.r >= CONFIG.target.r then 
-        return "CANDIDATE" 
-    end
-    
-    -- Проверка на превышение лимитов (EXCESS)
+function logic.classify(c, parents, CONFIG, has_empty_parents)
+    -- 1. Если превысил target - EXCESS
     if c.g > CONFIG.target.g or c.ga > CONFIG.target.ga or c.r > CONFIG.target.r then 
         return "EXCESS" 
     end
     
-    local weaker = true
-    local better = false
-    for _, p in ipairs(parents) do
-        if (c.g >= p.g and c.ga >= p.ga and c.r >= p.r) and (c.g > p.g or c.ga > p.ga or c.r > p.r) then 
-            better = true 
-        end
-        if c.g >= p.g and c.ga >= p.ga and c.r >= p.r then 
-            weaker = false 
-        end
+    -- 2. Если точно равен target (или больше/равен по всем) - идеал
+    if c.g >= CONFIG.target.g and c.ga >= CONFIG.target.ga and c.r >= CONFIG.target.r then 
+        return "CANDIDATE" 
     end
     
-    if weaker and #parents > 0 then return "WEAK" end
-    if better then return "CANDIDATE" end
-    return "WEAK"
+    -- Если родителей нет, сравнить не с чем. Считаем сильным (чтобы посадить)
+    if #parents == 0 then return "CANDIDATE" end
+    
+    -- 3. Ищем максимумы по каждому гену среди всех родителей
+    local max_g, max_ga, max_r = 0, 0, 0
+    for _, p in ipairs(parents) do
+        if p.g > max_g then max_g = p.g end
+        if p.ga > max_ga then max_ga = p.ga end
+        if p.r > max_r then max_r = p.r end
+    end
+    
+    -- 4. Если хотя бы один ген упал (меньше лучшего родителя) - WEAK
+    if c.g < max_g or c.ga < max_ga or c.r < max_r then 
+        return "WEAK" 
+    end
+    
+    -- 5. Если все гены >= лучших, и хотя бы один > (поднялся) - CANDIDATE
+    if c.g > max_g or c.ga > max_ga or c.r > max_r then 
+        return "CANDIDATE" 
+    end
+    
+    -- 6. Если равен самому сильному родителю (все гены == max)
+    if has_empty_parents then
+        return "CANDIDATE" -- Есть куда посадить, пусть растет
+    else
+        return "WEAK" -- Мест нет, такой же не нужен
+    end
 end
 
 function logic.isExcess(c, CONFIG)
