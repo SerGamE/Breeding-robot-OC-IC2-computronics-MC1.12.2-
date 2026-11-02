@@ -224,29 +224,32 @@ function tasks.getTask(state, CONFIG)
             end
         end
 
-        -- Смотрим на пустые или недозрелые DBL вокруг родителей
+        -- Ищем пустые или недозрелые DBL вокруг родителей (сценарий А)
         for k, st in pairs(state.cell_status) do
             if st == 2 and not state.locked[k] then
                 local d = state.scan_data[k]
                 if not d or (d.id == CONFIG.crop_id and d.sz < d.max_stages) then
-                    -- Проверяем, есть ли рядом зрелый родитель crop_id
                     local has_parent = false
                     for _, nk in ipairs(scanner.getNeighbors(state, CONFIG, k)) do
                         if state.cell_status[nk] == 1 and state.scan_data[nk] and state.scan_data[nk].id == CONFIG.crop_id and state.scan_data[nk].sz >= state.scan_data[nk].max_stages then 
                             has_parent = true; break 
                         end
                     end
-                    
                     if has_parent then
-                        if not d then
-                            empty_dbl_with_parent = empty_dbl_with_parent + 1
-                        else
-                            growing_dbl_with_parent = growing_dbl_with_parent + 1
-                        end
+                        if not d then empty_dbl_with_parent = empty_dbl_with_parent + 1
+                        else growing_dbl_with_parent = growing_dbl_with_parent + 1 end
                     end
                 end
             end
         end
+
+        -- СЦЕНАРИЙ Б: Всего 1 крест и 0 родителей -> инвертируем сразу
+        if crosses_crop == 1 and parents_crop == 0 then
+            invertMap(state)
+            return nil
+        end
+
+        -- СЦЕНАРИЙ А: 2+ креста, 0 родителей, все двойные жердочки заросли -> инвертируем
         if crosses_crop >= 2 and parents_crop == 0 and empty_dbl_with_parent == 0 and growing_dbl_with_parent == 0 then
             invertMap(state)
             return nil
