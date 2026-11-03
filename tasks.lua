@@ -20,8 +20,12 @@ function tasks.getTask(state, CONFIG)
     -- 1. РЕЖИМ EMERGENCY (ТОЛЬКО EMERGENCY_CLEAR)
     if state.phase == "EMERGENCY" then
         -- Приоритет 1: G24
-        for k, d in pairs(state.scan_data) do
-            if d.g and d.g >= 24 and not state.locked[k] then return "EMERGENCY_CLEAR", k, "EMERG_G24" end
+        if CONFIG.max_growth and CONFIG.max_growth > 0 then
+            for k, d in pairs(state.scan_data) do
+                if d.g and d.g >= CONFIG.max_growth and not state.locked[k] then 
+                    return "EMERGENCY_CLEAR", k, "EMERG_G24" 
+                end
+            end
         end
         -- Приоритет 2: Сорняки на крестах
         for k, d in pairs(state.scan_data) do
@@ -61,8 +65,16 @@ function tasks.getTask(state, CONFIG)
     end
 
     -- 2. G24 (в штатных режимах)
-    for k, d in pairs(state.scan_data) do
-        if d.g and d.g >= 24 and not state.locked[k] then return "DESTROY", k, "G24" end
+    if CONFIG.max_growth and CONFIG.max_growth > 0 then
+        for k, d in pairs(state.scan_data) do
+            if d.g and d.g >= CONFIG.max_growth and not state.locked[k] then 
+                if state.cell_status[k] == 1 then
+                    return "CLEAR", k, "G24_PARENT"
+                else
+                    return "DESTROY", k, "G24"
+                end
+            end
+        end
     end
 
     -- 3. СОРНЯКИ (в штатных режимах)
