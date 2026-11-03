@@ -207,11 +207,18 @@ function tasks.getTask(state, CONFIG)
         end
     end
     
-    -- 9. NEW (снос любых новых видов в SELECTION)
+    -- 9. NEW (снос или сохранение новых видов в SELECTION)
     if state.phase == "SELECTION" then
         for k, d in pairs(state.scan_data) do
             if state.cell_status[k] == 2 and d.id ~= "" and d.id ~= "weed" and d.id ~= CONFIG.crop_id and not state.locked[k] then
-                if CONFIG.new_species == "destroy" then return "DESTROY", k, "NEW" end
+                if CONFIG.new_species == "destroy" then 
+                    return "DESTROY", k, "NEW" 
+                elseif CONFIG.new_species == "save" then
+                    -- Если вид вырос до максимума - собираем семена в сундук 3
+                    if d.sz >= d.max_stages then
+                        return "HARVEST_NEW", k, "NEW_SEEDS"
+                    end
+                end
             end
         end
     end
