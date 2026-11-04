@@ -95,7 +95,8 @@ function ui.render(state, CONFIG, force)
     local w, h = gpu.getResolution()
     local start_y, start_x, cell_w, cell_h = 4, 2, 10, 5
     
-    local header_str = string.format("=== Server | %s | %s ===", state.phase, (state.busy and "BUSY" or "IDLE"))
+    local display_phase = state.paused and "PAUSE" or state.phase
+    local header_str = string.format("=== Server | %s | %s ===", display_phase, (state.busy and "BUSY" or "IDLE"))
     if force or old_header ~= header_str then
         gpu.setBackground(0x000000); gpu.setForeground(0xFFFF55)
         gpu.set(1, 1, header_str .. string.rep(" ", w - #header_str))

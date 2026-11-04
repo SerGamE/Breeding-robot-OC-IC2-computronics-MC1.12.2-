@@ -71,10 +71,12 @@ local function mainLoop()
         -- Ловим ВСЁ, без фильтров (чтобы не пропускать события)
         local ev = table.pack(event.pull(0.1))
         local need_render = false
-
         -- 1. Обработка кликов мышкой
         if ev[1] == "touch" then
             local _, _, tx, ty = table.unpack(ev)
+            tx = math.ceil(tx) -- округляем вверх
+            ty = math.ceil(ty)
+            
             for _, btn in ipairs(ui.getButtons()) do
                 if tx >= btn.x and tx < btn.x + btn.w and ty >= btn.y and ty < btn.y + btn.h then
                     btn.action()
@@ -82,7 +84,6 @@ local function mainLoop()
                     break
                 end
             end
-            
         -- 2. Обработка горячих клавиш
         elseif ev[1] == "key_down" then
             local _, _, char, code = table.unpack(ev)
@@ -93,7 +94,6 @@ local function mainLoop()
                 actionShutdown()
                 need_render = true
             end
-
         -- 3. Обработка сети
         elseif ev[1] == "modem_message" then
             local _, _, _, _, _, msg, id, arg1, arg2, arg3 = table.unpack(ev)
@@ -164,7 +164,6 @@ local function mainLoop()
                 need_render = true
             end
         end
-
         -- 4. Таймауты
         if state.busy and state.current_task then
             local delta = computer.uptime() - state.busy_uptime
@@ -194,7 +193,6 @@ local function mainLoop()
                 end
             end
         end
-
         -- 5. Скан
         if computer.uptime() - last_scan >= 0.2 then
             local full = (computer.uptime() - last_full_scan >= 3)
@@ -203,7 +201,6 @@ local function mainLoop()
             last_scan = computer.uptime()
             need_render = true
         end
-
         -- 6. Фазы
         if computer.uptime() - last_phase_check >= 5 then
             if state.phase ~= "EMERGENCY" then
@@ -215,11 +212,18 @@ local function mainLoop()
             last_phase_check = computer.uptime()
             need_render = true
         end
-
         -- 7. Выдача задач
         local can_work = state.robot_ready or (state.phase == "EMERGENCY" and not state.robot_ready)
         if can_work and not state.busy then
             local action, key, display_status = tasks.getTask(state, CONFIG)
+            -- Если мы завершаемся и задач нет - выключаемся
+            if state.shutdown_mode and not action then
+                ui.logChat("S", "Поле чистое. Завершаю работу...")
+                ui.render(state, CONFIG, true) -- принудительно рисуем
+                os.sleep(2)
+                computer.shutdown()
+            end
+
             if action then
                 state.task_counter = state.task_counter + 1
                 state.busy = true
