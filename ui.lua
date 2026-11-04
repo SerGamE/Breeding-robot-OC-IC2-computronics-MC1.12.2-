@@ -6,7 +6,14 @@ local buttons = {}
 local old_scan, old_stat, old_chat, old_header = {}, {}, {}, ""
 local chat_history = {}
 
+function ui.reset()
+    buttons = {}
+    old_scan, old_stat, old_chat, old_header = {}, {}, {}, ""
+    chat_history = {}
+end
+
 function ui.init()
+    ui.reset() -- Очищаем кеш при старте
     gpu.setBackground(0x000000); gpu.setForeground(0xFFFFFF)
     local w, h = gpu.getResolution()
     gpu.fill(1, 1, w, h, " ")

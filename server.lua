@@ -5,7 +5,8 @@ local component = require("component")
 local event     = require("event")
 local computer  = require("computer")
 local serialization = require("serialization")
-
+local gpu = component.gpu
+local term = require("term")
 local CONFIG      = require("config")
 local CROP_DB     = require("SeedsDB")
 local ui          = require("ui")
@@ -221,6 +222,15 @@ local function mainLoop()
                 ui.logChat("S", "Поле чистое. Завершаю работу...")
                 ui.render(state, CONFIG, true) -- принудительно рисуем
                 os.sleep(2)
+                -- чистимся перед выходом
+                ui.reset()
+                gpu.setBackground(0x000000)
+                gpu.setForeground(0xFFFFFF)
+                local w, h = gpu.getResolution()
+                gpu.fill(1, 1, w, h, " ")
+                term.clear()
+                term.setCursor(1, 1)
+                ptint("харэ")
                 os.exit()
             end
 
