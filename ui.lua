@@ -12,8 +12,17 @@ function ui.reset()
     chat_history = {}
 end
 
-function ui.init()
-    ui.reset() -- Очищаем кеш при старте
+function ui.init(CONFIG)
+    local cell_w, cell_h = 10, 5
+    -- Высота: шапка(1) + Target(1) + отступ(1) + поле + запас(1)
+    local need_h = 3 + (CONFIG.field_x * cell_h) + 1
+    -- Ширина: отступ слева(2) + поле + отступ(3) + чат(35) + запас(1)
+    local need_w = 2 + (CONFIG.field_z * cell_w) + 3 + 35 + 1
+    
+    local max_w, max_h = gpu.maxResolution()
+    -- Устанавливаем разрешение
+    gpu.setResolution(math.min(need_w, max_w), math.min(need_h, max_h))
+    -- Очистка
     gpu.setBackground(0x000000); gpu.setForeground(0xFFFFFF)
     local w, h = gpu.getResolution()
     gpu.fill(1, 1, w, h, " ")
@@ -139,8 +148,10 @@ function ui.render(state, CONFIG, force)
     
     local chat_x = start_x + (CONFIG.field_z * cell_w) + 3
     gpu.setForeground(0xFFFFFF); gpu.set(chat_x, start_y, "--- CHAT ---")
-    local chat_w = w - chat_x - 1
-    for i = 1, 14 do
+    local chat_w = math.min(35, w - chat_x - 1) -- Ограничение ширины чата
+    local chat_h = h - start_y - 3 -- Высота до низа экрана
+    
+    for i = 1, chat_h do
         local txt = chat_history[i] or ""
         if force or txt:sub(1, chat_w) ~= old_chat[i] then
             gpu.setBackground(0x000000); gpu.set(chat_x, start_y + i, string.rep(" ", chat_w))

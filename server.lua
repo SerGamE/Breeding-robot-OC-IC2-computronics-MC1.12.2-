@@ -70,7 +70,7 @@ thread.create(function()
 end)
 
 local function mainLoop()
-    ui.init()
+    ui.init(CONFIG)
     modem.open(CONFIG.port)
     -- При запуске будим робота даже если тот не дрыхнет
     state.last_alive = computer.uptime() -- Сбрасываем таймер, чтобы поток не дублировал
@@ -80,9 +80,10 @@ local function mainLoop()
     if not ok then ui.logChat("S", "Ошибка: карта не найдена!"); return end
     ui.logChat("S", "Загружено: " .. p_count .. " род, " .. c_count .. " кр, " .. t_count .. " тех.")
     
-    -- Создаем кнопки (теперь они не двигаются)
-    ui.createButton(60, 2, 10, 1, "PAUSE", actionPause, 0x005500)
-    ui.createButton(71, 2, 10, 1, "SHUTDOWN", actionShutdown, 0x550000)
+    -- Создаем кнопки, привязанные к правому краю
+    local w, h = component.gpu.getResolution()
+    ui.createButton(w - 4, 2, 2, 1, "⏸", actionPause, 0x005500)
+    ui.createButton(w - 2, 2, 2, 1, "❌", actionShutdown, 0x550000)
 
     if component.isAvailable("screen") then pcall(function() component.screen.setPrecise(true) end) end
     ui.logChat("S", "Сервер запущен. Жду готовность робота.")
