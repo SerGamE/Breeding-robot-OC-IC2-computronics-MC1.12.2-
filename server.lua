@@ -221,7 +221,7 @@ local function mainLoop()
                 ui.logChat("S", "Поле чистое. Завершаю работу...")
                 ui.render(state, CONFIG, true) -- принудительно рисуем
                 os.sleep(2)
-                computer.shutdown()
+                os.execute()
             end
 
             if action then
