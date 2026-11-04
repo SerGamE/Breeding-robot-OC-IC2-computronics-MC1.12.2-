@@ -230,7 +230,7 @@ local function mainLoop()
                 gpu.fill(1, 1, w, h, " ")
                 term.clear()
                 term.setCursor(1, 1)
-                ptint("харэ")
+                print("харэ")
                 os.exit()
             end
 
