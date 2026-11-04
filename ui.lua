@@ -18,8 +18,10 @@ function ui.init(CONFIG)
     local need_h = 3 + (CONFIG.field_x * cell_h) + 1
     -- Ширина: отступ слева(2) + поле + отступ(3) + чат(35) + запас(1)
     local need_w = 2 + (CONFIG.field_z * cell_w) + 3 + 35 + 1
-    
     local max_w, max_h = gpu.maxResolution()
+    print("NEED: " .. need_w .. "x" .. need_h)
+    print("MAX: " .. max_w .. "x" .. max_h)
+    
     -- Устанавливаем разрешение
     gpu.setResolution(math.min(need_w, max_w), math.min(need_h, max_h))
     -- Очистка
