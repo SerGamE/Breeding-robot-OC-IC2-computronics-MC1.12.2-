@@ -1,5 +1,5 @@
 -- ==============================================================================
--- SERVER: server.lua (Strict Dialog Protocol)
+-- SERVER: server.lua (Strict Dialog Protocol + UI Buttons)
 -- ==============================================================================
 local component = require("component")
 local event     = require("event")
@@ -39,6 +39,17 @@ local function wakeRobot()
     state.locked = {}
 end
 
+-- Действия кнопок (чтобы не дублировать код для клавиш и кнопок)
+local function actionPause()
+    state.paused = not state.paused 
+    ui.logChat("S", state.paused and "PAUSE ВКЛ" or "PAUSE ВЫКЛ")
+end
+
+local function actionShutdown()
+    state.shutdown_mode = true 
+    ui.logChat("S", "SHUTDOWN: Начинаю очистку...")
+end
+
 local function mainLoop()
     ui.init()
     modem.open(CONFIG.port)
@@ -47,8 +58,9 @@ local function mainLoop()
     if not ok then ui.logChat("S", "Ошибка: карта не найдена!"); return end
     ui.logChat("S", "Загружено: " .. p_count .. " род, " .. c_count .. " кр, " .. t_count .. " тех.")
     
-    ui.createButton(60, 2, 10, 1, "PAUSE", function() state.paused = not state.paused end, 0x005500)
-    ui.createButton(71, 2, 10, 1, "SHUTDOWN", function() state.shutdown_mode = true end, 0x550000)
+    -- Создаем кнопки (теперь они не двигаются)
+    ui.createButton(60, 2, 10, 1, "PAUSE", actionPause, 0x005500)
+    ui.createButton(71, 2, 10, 1, "SHUTDOWN", actionShutdown, 0x550000)
 
     if component.isAvailable("screen") then pcall(function() component.screen.setPrecise(true) end) end
     ui.logChat("S", "Сервер запущен. Жду READY от робота.")
@@ -56,13 +68,35 @@ local function mainLoop()
     local last_scan, last_full_scan, last_phase_check = 0, 0, 0
 
     while true do
-        local ev = table.pack(event.pull(0.1, "modem_message"))
+        -- Ловим ВСЁ, без фильтров (чтобы не пропускать события)
+        local ev = table.pack(event.pull(0.1))
         local need_render = false
 
-        -- 1. Сеть
-        if ev[1] == "modem_message" then
+        -- 1. Обработка кликов мышкой
+        if ev[1] == "touch" then
+            local _, _, tx, ty = table.unpack(ev)
+            for _, btn in ipairs(ui.getButtons()) do
+                if tx >= btn.x and tx < btn.x + btn.w and ty >= btn.y and ty < btn.y + btn.h then
+                    btn.action()
+                    need_render = true
+                    break
+                end
+            end
+            
+        -- 2. Обработка горячих клавиш
+        elseif ev[1] == "key_down" then
+            local _, _, char, code = table.unpack(ev)
+            if code == 201 then -- Кнопка PAUSE
+                actionPause()
+                need_render = true
+            elseif code == 207 then -- Кнопка END
+                actionShutdown()
+                need_render = true
+            end
+
+        -- 3. Обработка сети
+        elseif ev[1] == "modem_message" then
             local _, _, _, _, _, msg, id, arg1, arg2, arg3 = table.unpack(ev)
-            --state.busy_uptime = computer.uptime()
 
             if msg == "READY" then
                 state.robot_ready = true
@@ -92,7 +126,7 @@ local function mainLoop()
                 end
 
             elseif msg == "ALIVE" then
-                state.last_alive = computer.uptime() -- Обновляем ТОЛЬКО таймер жизни!
+                state.last_alive = computer.uptime()
                 
             elseif msg == "ACK" then
                 if state.current_task and state.current_task.id == id then
@@ -122,7 +156,6 @@ local function mainLoop()
                         if #targets > 0 then
                             local coords_str = serialization.serialize(targets)
                             modem.broadcast(CONFIG.port, "REPLACE_CORDS", id, coords_str)
-                            -- Задача продолжается, ждем ACK
                         end
                     end
                 end
@@ -132,7 +165,7 @@ local function mainLoop()
             end
         end
 
-        -- 2. Таймауты
+        -- 4. Таймауты
         if state.busy and state.current_task then
             local delta = computer.uptime() - state.busy_uptime
             local alive_delta = computer.uptime() - state.last_alive
@@ -162,7 +195,7 @@ local function mainLoop()
             end
         end
 
-        -- 3. Скан
+        -- 5. Скан
         if computer.uptime() - last_scan >= 0.2 then
             local full = (computer.uptime() - last_full_scan >= 3)
             scanner.scan(state, CONFIG, CROP_DB, full)
@@ -171,7 +204,7 @@ local function mainLoop()
             need_render = true
         end
 
-        -- 4. Фазы
+        -- 6. Фазы
         if computer.uptime() - last_phase_check >= 5 then
             if state.phase ~= "EMERGENCY" then
                 local phase_msg = logic.checkPhase(state, CONFIG)
@@ -183,7 +216,7 @@ local function mainLoop()
             need_render = true
         end
 
-        -- 5. Выдача задач
+        -- 7. Выдача задач
         local can_work = state.robot_ready or (state.phase == "EMERGENCY" and not state.robot_ready)
         if can_work and not state.busy then
             local action, key, display_status = tasks.getTask(state, CONFIG)
@@ -194,8 +227,6 @@ local function mainLoop()
                 state.current_task = { id = state.task_counter, key = key, action = action, taken = false }
                 state.locked[key] = true
 
-                -- Для MULTI_PLANT display_status - это список координат (строка)
-                -- На экран выводим просто "MULTI" для красоты
                 local screen_status = (action == "MULTI_PLANT") and "MULTI" or display_status
                 setStatus(key, screen_status)
                 ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
@@ -203,7 +234,6 @@ local function mainLoop()
                 if state.phase == "EMERGENCY" then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
                 else
-                    -- display_status здесь несет строку координат для MULTI_PLANT
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, action, key, display_status)
                 end
                 need_render = true
