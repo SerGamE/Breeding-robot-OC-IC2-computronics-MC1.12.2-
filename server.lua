@@ -86,7 +86,7 @@ local function mainLoop()
     ui.createButton(w - 2, 2, 2, 1, "❌", actionShutdown, 0x550000)
 
     if component.isAvailable("screen") then pcall(function() component.screen.setPrecise(true) end) end
-    ui.logChat("S", "Сервер запущен. Жду готовность робота.")
+    ui.logChat("S", "Готов. Жду готовность робота.")
 
     local last_scan, last_full_scan, last_phase_check = 0, 0, 0
 
