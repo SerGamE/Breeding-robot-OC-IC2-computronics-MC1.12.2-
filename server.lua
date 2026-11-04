@@ -58,7 +58,7 @@ thread.create(function()
         local alive_delta = computer.uptime() - state.last_alive
         
         -- Если робот не слал ALIVE больше 40 секунд
-        if alive_delta > 40 then
+        if alive_delta > CONFIG.robot_wake_timeout then
             -- Проверяем, чтобы не спамить пробуждением
             if computer.uptime() - state.last_wake_uptime > 20 then
                 wakeRobot()

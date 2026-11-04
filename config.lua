@@ -11,9 +11,8 @@ return {
     -- сохранять новые виды в режиме SELECTION
     new_species = "destroy", --заменить на save чтоб сохранять новые виды в режиме SELECTION
     --системные настройки
-    answer_timeout = 40,
-    boot_timeout = 180,
-    wake_message = "WAKE_UP_MAN",
+    robot_wake_timeout = 30, -- Таймаут в секундах, после которого сервер будит робота, если тот не шлет ALIVE
+    wake_message = "WAKE_UP_MAN",-- Кодовое слово которое будит робота
     port = 109,
     min_dead_parents = 4, -- порог смертей родителей при котором режим MUTATION выключается 
 }
