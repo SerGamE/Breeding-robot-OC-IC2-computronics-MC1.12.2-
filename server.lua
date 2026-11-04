@@ -273,7 +273,11 @@ local function mainLoop()
 
                 local screen_status = (action == "MULTI_PLANT") and "MULTI" or display_status
                 setStatus(key, screen_status)
-                ui.logChat("S>", string.format("%s #%d -> %s", action, state.task_counter, key))
+                -- Если display_status содержит причину (WEAK, EXCESS и т.д.), пишем её вместо action
+                local log_action = display_status or action
+                -- Для MULTI_PLANT display_status - это координаты, поэтому пишем action
+                if action == "MULTI_PLANT" then log_action = action end
+                ui.logChat("S>", string.format("%s #%d -> %s", log_action, state.task_counter, key))
                 
                 if state.phase == "EMERGENCY" then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)
