@@ -1,12 +1,12 @@
 -- ==============================================================================
 -- SERVER: server.lua (Strict Dialog Protocol + UI Buttons)
 -- ==============================================================================
-local component = require("component")
-local event     = require("event")
-local computer  = require("computer")
+local component   = require("component")
+local event       = require("event")
+local computer    = require("computer")
 local serialization = require("serialization")
-local gpu = component.gpu
-local term = require("term")
+local gpu         = component.gpu
+local term        = require("term")
 local CONFIG      = require("config")
 local CROP_DB     = require("SeedsDB")
 local ui          = require("ui")
@@ -14,8 +14,8 @@ local map_manager = require("map_manager")
 local scanner     = require("scanner")
 local logic       = require("logic")
 local tasks       = require("tasks")
-
-local modem = component.modem
+local thread      = require("thread")
+local modem       = component.modem
 
 local state = {
     phase = "INIT",    last_invert_time = 0,     
@@ -51,10 +51,31 @@ local function actionShutdown()
     ui.logChat("S", "SHUTDOWN: Начинаю очистку...")
 end
 
+-- Запускаем фоновый поток проверки жизни робота
+thread.create(function()
+    while true do
+        os.sleep(5) -- Проверяем каждые 5 секунд
+        local alive_delta = computer.uptime() - state.last_alive
+        
+        -- Если робот не слал ALIVE больше 40 секунд
+        if alive_delta > 40 then
+            -- Проверяем, чтобы не спамить пробуждением
+            if computer.uptime() - state.last_wake_uptime > 20 then
+                wakeRobot()
+                -- В лог писать не будем, чтобы не засорять чат каждые 20 сек,
+                -- или можем добавить редкий лог
+            end
+        end
+    end
+end)
+
 local function mainLoop()
     ui.init()
     modem.open(CONFIG.port)
-    
+    -- При запуске будим робота даже если тот не дрыхнет
+    state.last_alive = computer.uptime() -- Сбрасываем таймер, чтобы поток не дублировал
+    wakeRobot()
+    ui.logChat("S", "Поиск робота...")
     local ok, p_count, c_count, t_count = map_manager.load(state)
     if not ok then ui.logChat("S", "Ошибка: карта не найдена!"); return end
     ui.logChat("S", "Загружено: " .. p_count .. " род, " .. c_count .. " кр, " .. t_count .. " тех.")
@@ -64,7 +85,7 @@ local function mainLoop()
     ui.createButton(71, 2, 10, 1, "SHUTDOWN", actionShutdown, 0x550000)
 
     if component.isAvailable("screen") then pcall(function() component.screen.setPrecise(true) end) end
-    ui.logChat("S", "Сервер запущен. Жду READY от робота.")
+    ui.logChat("S", "Сервер запущен. Жду готовность робота.")
 
     local last_scan, last_full_scan, last_phase_check = 0, 0, 0
 
@@ -165,24 +186,32 @@ local function mainLoop()
                 need_render = true
             end
         end
-        -- 4. Таймауты
+        -- 4. Таймауты задач
         if state.busy and state.current_task then
             local delta = computer.uptime() - state.busy_uptime
             local alive_delta = computer.uptime() - state.last_alive
             
             if state.current_task.taken then
+                -- Ждем ACK. Если робот не шлет ALIVE 40 секунд - отменяем задачу.
                 if alive_delta > 40 then
-                    ui.logChat("S", "Таймаут выполнения (нет ALIVE). Бужу.")
-                    wakeRobot()
+                    ui.logChat("S", "Таймаут выполнения (робот пропал). Отменяю задачу.")
+                    state.busy = false
+                    state.current_task = nil
+                    state.locked = {}
                     need_render = true
                 end
             else
+                -- Ждем TAKEN
                 if delta > 5 then
                     if alive_delta > 30 then
-                        ui.logChat("S", "Робот пропал. Бужу.")
-                        wakeRobot()
+                        -- Робот не отвечает, отменяем. Поток его разбудит.
+                        ui.logChat("S", "Робот пропал. Отменяю задачу.")
+                        state.busy = false
+                        state.current_task = nil
+                        state.locked = {}
                         need_render = true
                     else
+                        -- Робот жив, но прослушал. Повторяем задачу.
                         ui.logChat("S", "Повтор #" .. state.current_task.id)
                         if state.phase == "EMERGENCY" then
                             modem.broadcast(CONFIG.port, "CMD", state.current_task.id, "EMERGENCY_CLEAR", state.current_task.key)
