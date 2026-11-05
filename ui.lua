@@ -16,16 +16,16 @@ function ui.reset()
 end
 
 function ui.init(CONFIG)
-    -- Считаем нужное разрешение
-    local w = (CONFIG.field_z * 10) + 5 + 30 -- Поле + отступы + чат
-    local h = (CONFIG.field_x * 5) + 4       -- Поле + шапка + отступ
+    -- Считаем нужное разрешение (немного увеличили ширину чата для русского)
+    local w = (CONFIG.field_z * 10) + 5 + 36
+    local h = (CONFIG.field_x * 5) + 4
     
     -- Ограничиваем максимальным разрешением экрана
     local max_w, max_h = gpu.maxResolution()
     w = math.min(w, max_w)
     h = math.min(h, max_h)
     
-    -- Применяем (сработает только первый раз)
+    -- Применяем
     gpu.setResolution(w, h)
     
     -- Очистка
@@ -33,17 +33,16 @@ function ui.init(CONFIG)
     gpu.setForeground(0xFFFFFF)
     gpu.fill(1, 1, w, h, " ")
     
-    -- Сбрасываем кеш (чтобы при перезапуске всё отрисовалось заново)
+    -- Сбрасываем кеш
     buttons = {}
     old_scan, old_stat, old_chat, old_header = {}, {}, {}, ""
     chat_history = {}
 end
 
 function ui.logChat(sender, text)
-    -- Если sender == "R", значит это красная ошибка, иначе зеленый/белый
-    local color = 0xFFFFFF -- Белый по умолчанию
-    if sender == "R" then color = 0xFF5555 -- Красный
-    elseif sender == "S" then color = 0x55FF55 -- Зеленый (сервер)
+    local color = 0xFFFFFF
+    if sender == "R" then color = 0xFF5555
+    elseif sender == "S" then color = 0x55FF55
     end
     
     table.insert(chat_history, 1, { text = text, color = color })
@@ -58,6 +57,12 @@ function ui.getButtons()
     return buttons
 end
 
+-- Правильная обертка для unicode.sub
+local function unisub(str, max_w)
+    if not str then return "" end
+    return unicode.sub(str, 1, max_w)
+end
+
 local function drawButtons()
     for _, btn in ipairs(buttons) do
         gpu.setBackground(btn.color)
@@ -70,7 +75,6 @@ local function drawButtons()
 end
 
 local function drawCell(state, key, px, py, cell_w, cell_h)
-    -- Защита от nil
     local w = cell_w or 10
     local h = cell_h or 5
     
@@ -91,7 +95,7 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
         gpu.setForeground(0x555555); gpu.set(px + 2, py + 2, L.empty)
         gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
         if stat ~= "" then 
-            gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 4, stat:sub(1, w - 2)) 
+            gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 4, unisub(stat, w - 2)) 
         end
         return
     end
@@ -99,19 +103,18 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
         gpu.setForeground(0x55FFFF); gpu.set(px + 2, py + 2, L.dbl)
         gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
         if stat ~= "" then 
-            gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 4, stat:sub(1, w - 2)) 
+            gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 4, unisub(stat, w - 2)) 
         end
         return
     end
-    gpu.setForeground(0xFFFFFF); gpu.set(px + 1, py, (data.id or "---"):sub(1, w - 2))
-    gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 1, (data.stats or "-/-/-"):sub(1, w - 2))
-    gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 2, (data.stage or "0/7"):sub(1, w - 2))
-    gpu.setForeground(0xAA55FF); gpu.set(px + 1, py + 3, ("GP:"..(data.gp or "0")):sub(1, w - 2))
+    gpu.setForeground(0xFFFFFF); gpu.set(px + 1, py, unisub(data.id or "---", w - 2))
+    gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 1, unisub(data.stats or "-/-/-", w - 2))
+    gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 2, unisub(data.stage or "0/7", w - 2))
+    gpu.setForeground(0xAA55FF); gpu.set(px + 1, py + 3, unisub("GP:"..(data.gp or "0"), w - 2))
     
     gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
     
-        if stat ~= "" then
-        -- Определяем цвет по оригинальному статусу
+    if stat ~= "" then
         if stat:match("WEAK") or stat:match("EXCESS") or stat:match("NEW") or stat:match("CLEAR") or stat:match("WEED") or stat:match("G24") then 
             gpu.setForeground(0xFF5555)
         elseif stat:match("DBL") then 
@@ -122,7 +125,6 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
             gpu.setForeground(0xFFFFFF) 
         end
 
-        -- Переводим текст статуса
         local translated = stat
         if stat == "WEAK" then translated = L.st_weak
         elseif stat == "EXCESS" then translated = L.st_excess
@@ -136,7 +138,7 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
         elseif stat == "MULTI" then translated = L.st_multi
         end
 
-        gpu.set(px + 1, py + 4, translated:sub(1, w - 2))
+        gpu.set(px + 1, py + 4, unisub(translated, w - 2))
     end
 end
 
@@ -190,20 +192,19 @@ function ui.render(state, CONFIG, force)
     local chat_x = start_x + (CONFIG.field_z * cell_w) + 3
     gpu.setForeground(0xFFFFFF); gpu.set(chat_x, start_y, L.chat_title)
     local chat_w = w - chat_x - 1
-    if chat_w > 36 then chat_w = 36 end -- Ограничиваем ширину чата
+    if chat_w > 36 then chat_w = 36 end
     
-    -- Вычисляем, сколько строк влезет до низа экрана
     local max_chat_lines = h - start_y - 1
     
     for i = 1, max_chat_lines do
         local entry = chat_history[i]
         if entry then
             local txt = entry.text
-            if force or txt:sub(1, chat_w) ~= old_chat[i] then
+            if force or unisub(txt, chat_w) ~= old_chat[i] then
                 gpu.setBackground(0x000000); gpu.set(chat_x, start_y + i, string.rep(" ", chat_w))
                 gpu.setForeground(entry.color)
-                gpu.set(chat_x, start_y + i, txt:sub(1, chat_w))
-                old_chat[i] = txt
+                gpu.set(chat_x, start_y + i, unisub(txt, chat_w))
+                old_chat[i] = unisub(txt, chat_w)
             end
         else
             if force or old_chat[i] ~= "" then
