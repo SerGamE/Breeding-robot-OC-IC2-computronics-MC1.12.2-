@@ -78,7 +78,7 @@ local function mainLoop()
     ui.logChat("S", "Поиск робота...")
     local ok, p_count, c_count, t_count = map_manager.load(state)
     if not ok then ui.logChat("S", "Ошибка: карта не найдена!"); return end
-    ui.logChat("S", "Загружено: " .. p_count .. " род, " .. c_count .. " кр, " .. t_count .. " тех.")
+    ui.logChat("S", "карта" .. p_count .. " р, " .. c_count .. " к," .. t_count .. " т")
     
     -- Создаем кнопки, привязанные к правому краю
     local w, h = component.gpu.getResolution()
@@ -129,7 +129,7 @@ local function mainLoop()
                     state.busy = false
                     state.current_task = nil
                     state.locked = {}
-                    ui.logChat("S", "EMERGENCY OFF (робот починился)")
+                    ui.logChat("S", "EMERG OFF(робот починился)")
                 end
                 need_render = true
                 
@@ -195,7 +195,7 @@ local function mainLoop()
             if state.current_task.taken then
                 -- Ждем ACK. Если робот не шлет ALIVE 40 секунд - отменяем задачу.
                 if alive_delta > 40 then
-                    ui.logChat("S", "Таймаут выполнения (робот пропал). Отменяю задачу.")
+                    ui.logChat("S", "Робот пропал. Отменяю задачу.")
                     state.busy = false
                     state.current_task = nil
                     state.locked = {}
