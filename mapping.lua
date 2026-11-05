@@ -6,11 +6,9 @@ local component = require("component")
 local event     = require("event")
 local serialization = require("serialization")
 local fs        = require("filesystem")
-
-local mapping = {}
-local PORT = 109
-local MAP_FILE = "/home/map.lua"
-local WAKE_MSG = "WAKE_UP_MAN"
+local CONFIG    = require("config")
+local mapping   = {}
+local MAP_FILE  = "/home/map.lua"
 
 -- ==============================================================================
 -- Вспомогательные функции
@@ -54,7 +52,7 @@ function mapping.save(crop_matrix, tech_zone, parent_set, cross_set)
     if f then
         f:write("return " .. serialization.serialize(map_data))
         f:close()
-        print("[Mapping] Карта сохранена в " .. MAP_FILE)
+        print("[Mapping] Map saved to " .. MAP_FILE)
     end
 end
 
@@ -113,22 +111,22 @@ end
 
 -- Основная функция запуска картографии
 function mapping.run(field_x, field_z, modem)
-    print("[Mapping] Старт картографии...")
+    print("[Mapping] Starting mapping...")
     local crop_matrix = {}
     local tech_zone = {}
 
     -- 1. Будим робота
-    print("[Mapping] Бужу робота и жду READY...")
-    modem.broadcast(PORT, WAKE_MSG)
+    print("[Mapping] Waking up robot and waiting for READY...")
+    modem.broadcast(CONFIG.port, CONFIG.wake_message)
     
     -- 2. Ждем READY от робота (с таймаутом)
     local ready_received = false
     local timeout = 60
-    local start_time = computer.uptime() -- ИСПОЛЬЗУЕМ computer.uptime()
+    local start_time = computer.uptime()
     
     while not ready_received do
         if computer.uptime() - start_time > timeout then
-            print("[Mapping] ОШИБКА: Робот не прислал READY за " .. timeout .. " секунд.")
+            print("[Mapping] ERROR: Robot did not send READY within " .. timeout .. " seconds.")
             return nil, nil, nil, nil
         end
         
@@ -137,7 +135,7 @@ function mapping.run(field_x, field_z, modem)
             local _, _, _, _, _, msg = table.unpack(ev)
             if msg == "READY" then
                 ready_received = true
-                print("[Mapping] Робот готов! Начинаю змейку.")
+                print("[Mapping] Robot is ready! Starting snake.")
             end
         end
     end
@@ -146,7 +144,7 @@ function mapping.run(field_x, field_z, modem)
     os.sleep(1)
     
     -- 3. Гоним змейкой
-    modem.broadcast(PORT, "START_MAPPING", field_x, field_z)
+    modem.broadcast(CONFIG.port, "START_MAPPING", field_x, field_z)
     
     local done = false
     while not done do
@@ -159,19 +157,19 @@ function mapping.run(field_x, field_z, modem)
                 local uuid = mapping.getNewCropUUID(crop_matrix)
                 if uuid then
                     crop_matrix[key] = uuid
-                    modem.broadcast(PORT, "SERVER_OK")
-                    print("[Mapping] Связано: " .. key)
+                    modem.broadcast(CONFIG.port, "SERVER_OK")
+                    print("[Mapping] Linked: " .. key)
                 else
                     tech_zone[key] = true
-                    modem.broadcast(PORT, "SERVER_TECH")
-                    print("[Mapping] Техзона: " .. key)
+                    modem.broadcast(CONFIG.port, "SERVER_TECH")
+                    print("[Mapping] Tech zone: " .. key)
                 end
                 
             elseif msg == "CALIB_TECH" then
                 local key = string.format("%d,%d", a, b)
                 tech_zone[key] = true
-                modem.broadcast(PORT, "SERVER_TECH")
-                print("[Mapping] Техзона: " .. key)
+                modem.broadcast(CONFIG.port, "SERVER_TECH")
+                print("[Mapping] Tech zone: " .. key)
                 
             elseif msg == "CALIB_DONE" then
                 done = true
@@ -180,7 +178,7 @@ function mapping.run(field_x, field_z, modem)
     end
 
     -- 4. Разбиваем шахматку
-    print("[Mapping] Разбивка шахматки...")
+    print("[Mapping] Calculating chessboard...")
     local parent_set, cross_set = mapping.chooseParents(crop_matrix, tech_zone)
     
     -- 5. Сохраняем
@@ -194,14 +192,10 @@ end
 -- ==============================================================================
 if not package.loaded["mapping"] then
     local modem = component.modem
-    modem.open(PORT)
-    
-    local field_x = 5
-    local field_z = 5
-    
-    print("Запуск ручной картографии поля " .. field_x .. "x" .. field_z)
-    mapping.run(field_x, field_z, modem)
-    print("Готово!")
+    modem.open(CONFIG.port)
+    print("Manual mapping for field " .. CONFIG.field_x .. "x" .. CONFIG.field_z)
+    mapping.run(CONFIG.field_x, CONFIG.field_z, modem)
+    print("Done!")
 end
 
 return mapping
