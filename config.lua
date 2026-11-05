@@ -1,6 +1,6 @@
 return {
     --язык
-    language = "Ru" -- or "En"
+    language = "Ru", -- or "En"
     --для ic2 experemental max_growth = 24, для classic nil или 0 чтобы отключить
     max_growth = 24, -- Порог гена Growth, выше которого растение сносится 
     --размеры поля
