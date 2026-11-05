@@ -1,4 +1,6 @@
 local scanner = require("scanner")
+local CONFIG = require("config")
+local L = require("lang")[CONFIG.language]
 local logic = {}
 
 function logic.checkPhase(state, CONFIG)
@@ -49,7 +51,7 @@ function logic.checkPhase(state, CONFIG)
     if total_plants == 0 then
         if state.phase ~= "INIT" then 
             state.phase = "INIT"
-            return "INIT (ждем посадки)"
+            return L.phase_msg_init
         end
         return nil
     end
@@ -58,7 +60,7 @@ function logic.checkPhase(state, CONFIG)
     if total_plants == 1 then
         if state.phase ~= "BREEDING" then 
             state.phase = "BREEDING"
-            return "BREEDING (1 растение)"
+            return L.phase_msg_breeding_1
         end
         return nil
     end
@@ -69,7 +71,7 @@ function logic.checkPhase(state, CONFIG)
         if parents == total_parent_slots and target_parents == total_parent_slots then
             if state.phase ~= "MUTATION" then 
                 state.phase = "MUTATION"
-                return "MUTATION (все target)"
+                return L.phase_msg_mutation
             end
             return nil
         end
@@ -79,7 +81,7 @@ function logic.checkPhase(state, CONFIG)
             local dead_parents = total_parent_slots - parents
             if dead_parents >= CONFIG.min_dead_parents then
                 state.phase = "SELECTION"
-                return "SELECTION (погибло " .. dead_parents .. " родителей)"
+                return string.format(L.phase_msg_selection_dead, dead_parents)
             else
                 return nil -- Остаемся в MUTATION, ждем восстановления
             end
@@ -89,7 +91,7 @@ function logic.checkPhase(state, CONFIG)
         if valid_crosses > 0 then
             if state.phase ~= "SELECTION" then 
                 state.phase = "SELECTION"
-                return "SELECTION (есть валидный крест)"
+                return L.phase_msg_selection
             end
             return nil
         end
@@ -97,7 +99,7 @@ function logic.checkPhase(state, CONFIG)
         -- Иначе BREEDING (нужно размножение)
         if state.phase ~= "BREEDING" then 
             state.phase = "BREEDING"
-            return "BREEDING (нужно размножение)"
+            return L.phase_msg_breeding
         end
     end
     return nil

@@ -13,6 +13,14 @@ lang.Ru = {
     status_idle = "ЖДЕТ",
     stats = "Цель: %d/%d/%d | МаксРод: %d/%d/%d | МаксДет: %d/%d/%d",
     chat_title = "--- ЧАТ ---",
+    
+    -- Фазы
+    phase_msg_init = "ИНИТ (ждем посадки)",
+    phase_msg_breeding_1 = "РАЗМНОЖЕНИЕ (1 растение)",
+    phase_msg_mutation = "МУТАЦИЯ (все target)",
+    phase_msg_selection_dead = "СЕЛЕКЦИЯ (погибло %d родителей)",
+    phase_msg_selection = "СЕЛЕКЦИЯ (есть валидный крест)",
+    phase_msg_breeding = "РАЗМНОЖЕНИЕ (нужно размножение)",
 
     -- Статусы на поле
     dbl = "#",
@@ -64,6 +72,13 @@ lang.En = {
     status_idle = "IDLE",
     stats = "Target: %d/%d/%d | MaxPar: %d/%d/%d | MaxCh: %d/%d/%d",
     chat_title = "--- CHAT ---",
+    --phase
+    phase_msg_init = "INIT (waiting for plant)",
+    phase_msg_breeding_1 = "BREEDING (1 plant)",
+    phase_msg_mutation = "MUTATION (all target)",
+    phase_msg_selection_dead = "SELECTION (%d parents died)",
+    phase_msg_selection = "SELECTION (valid cross exists)",
+    phase_msg_breeding = "BREEDING (need breeding)",
 
     -- Field statuses
     dbl = "#",
@@ -115,7 +130,14 @@ lang.Ja = {
     status_idle = "待機中",
     stats = "目標: %d/%d/%d | 最大親: %d/%d/%d | 最大子: %d/%d/%d",
     chat_title = "--- チャット ---",
-
+    --phase
+    phase_msg_init = "初期化（植え付け待ち）",
+    phase_msg_breeding_1 = "繁殖（植物1つ）",
+    phase_msg_mutation = "突然変異（すべて目標）",
+    phase_msg_selection_dead = "選抜（親が%d匹死亡）",
+    phase_msg_selection = "選抜（有効な交配あり）",
+    phase_msg_breeding = "繁殖（繁殖が必要）",
+    
     -- Field statuses
     dbl = "#",
     empty = "空",
