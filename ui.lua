@@ -1,5 +1,6 @@
 local component = require("component")
 local gpu = component.gpu
+local unicode = require("unicode")
 local CONFIG = require("config")
 local lang_lib    = require("lang")
 local L           = lang_lib[CONFIG.language] --язык
