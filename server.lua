@@ -15,7 +15,8 @@ local scanner     = require("scanner")
 local logic       = require("logic")
 local tasks       = require("tasks")
 local thread      = require("thread")
-local L           = require("lang")[CONFIG.language]
+local lang_lib    = require("lang")
+local L           = lang_lib[CONFIG.language] --язык
 local modem       = component.modem
 
 local state = {

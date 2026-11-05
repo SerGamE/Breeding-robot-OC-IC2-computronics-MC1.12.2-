@@ -5,7 +5,8 @@ local map_manager = require("map_manager")
 local ui = require("ui")
 local computer = require("computer")
 local CONFIG = require("config")
-local L = require("lang")[CONFIG.language]
+local lang_lib    = require("lang")
+local L           = lang_lib[CONFIG.language] --язык
 local tasks = {}
 
 local function invertMap(state)
