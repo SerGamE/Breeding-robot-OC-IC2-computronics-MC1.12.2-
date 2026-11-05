@@ -124,7 +124,6 @@ local function mainLoop()
                     end
                 end
             end
-        end
         -- 2. Обработка горячих клавиш
         elseif ev[1] == "key_down" then
             local _, _, char, code = table.unpack(ev)
