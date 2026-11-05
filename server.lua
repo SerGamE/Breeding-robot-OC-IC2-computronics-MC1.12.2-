@@ -84,8 +84,8 @@ local function mainLoop()
     
     -- Создаем кнопки, привязанные к правому краю
     local w, h = component.gpu.getResolution()
-    ui.createButton(w - 4, 2, 2, 1, "⏸", actionPause, 0x005500)
-    ui.createButton(w - 2, 2, 2, 1, "❌", actionShutdown, 0x550000)
+    ui.createButton(w - 13, 2, 6, 3, "⏸", actionPause, 0x005500)
+    ui.createButton(w - 6, 2, 6, 3, "❌", actionShutdown, 0x550000)
 
     if component.isAvailable("screen") then pcall(function() component.screen.setPrecise(true) end) end
     ui.logChat("S", L.log_ready) --Готов. Жду готовность робота
