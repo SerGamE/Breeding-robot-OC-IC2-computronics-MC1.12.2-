@@ -140,7 +140,7 @@ local function mainLoop()
                 state.busy = false; state.current_task = nil; state.locked = {} 
                 state.phase = "EMERGENCY"
                 if not state.emergency_notified then
-                    ui.logChat("R<", L.log_emerg_on)
+                    ui.logChat("R", L.log_emerg_on)
                     state.emergency_notified = true
                 end
                 need_render = true
@@ -185,7 +185,7 @@ local function mainLoop()
                     end
                 end
             elseif msg == "ALERT" then
-                ui.logChat("R<", string.format(L.log_alert, tostring(arg1)))
+                ui.logChat("R", string.format(L.log_alert, tostring(arg1)))
                 need_render = true
             end
         end

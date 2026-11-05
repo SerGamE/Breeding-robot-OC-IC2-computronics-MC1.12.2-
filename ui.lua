@@ -40,7 +40,13 @@ function ui.init(CONFIG)
 end
 
 function ui.logChat(sender, text)
-    table.insert(chat_history, 1, string.format("[%s] %s", sender, text))
+    -- Если sender == "R", значит это красная ошибка, иначе зеленый/белый
+    local color = 0xFFFFFF -- Белый по умолчанию
+    if sender == "R" then color = 0xFF5555 -- Красный
+    elseif sender == "S" then color = 0x55FF55 -- Зеленый (сервер)
+    end
+    
+    table.insert(chat_history, 1, { text = text, color = color })
     if #chat_history > 50 then table.remove(chat_history) end
 end
 
@@ -184,22 +190,26 @@ function ui.render(state, CONFIG, force)
     local chat_x = start_x + (CONFIG.field_z * cell_w) + 3
     gpu.setForeground(0xFFFFFF); gpu.set(chat_x, start_y, L.chat_title)
     local chat_w = w - chat_x - 1
-    if chat_w > 36 then chat_w = 35 end -- Ограничиваем ширину чата
+    if chat_w > 36 then chat_w = 36 end -- Ограничиваем ширину чата
     
     -- Вычисляем, сколько строк влезет до низа экрана
     local max_chat_lines = h - start_y - 1
     
     for i = 1, max_chat_lines do
-        local txt = chat_history[i] or ""
-        if force or txt:sub(1, chat_w) ~= old_chat[i] then
-            gpu.setBackground(0x000000); gpu.set(chat_x, start_y + i, string.rep(" ", chat_w))
-            if chat_history[i] then
-                local c = 0xFFFFFF
-                if chat_history[i]:match("^%[R%]") then c = 0x55FFFF
-                elseif chat_history[i]:match("^%[S%]") then c = 0x55FF55 end
-                gpu.setForeground(c); gpu.set(chat_x, start_y + i, chat_history[i]:sub(1, chat_w))
+        local entry = chat_history[i]
+        if entry then
+            local txt = entry.text
+            if force or txt:sub(1, chat_w) ~= old_chat[i] then
+                gpu.setBackground(0x000000); gpu.set(chat_x, start_y + i, string.rep(" ", chat_w))
+                gpu.setForeground(entry.color)
+                gpu.set(chat_x, start_y + i, txt:sub(1, chat_w))
+                old_chat[i] = txt
             end
-            old_chat[i] = txt
+        else
+            if force or old_chat[i] ~= "" then
+                gpu.setBackground(0x000000); gpu.set(chat_x, start_y + i, string.rep(" ", chat_w))
+                old_chat[i] = ""
+            end
         end
     end
     drawButtons()
