@@ -4,6 +4,8 @@ local serialization = require("serialization")
 local map_manager = require("map_manager")
 local ui = require("ui")
 local computer = require("computer")
+local CONFIG = require("config")
+local L = require("lang")[CONFIG.language]
 local tasks = {}
 
 local function invertMap(state)
@@ -13,7 +15,7 @@ local function invertMap(state)
     end
     map_manager.save(state)
     state.last_invert_time = computer.uptime() -- Запоминаем время
-    ui.logChat("S", "ШАХМАТКА ИНВЕРТИРОВАНА!")
+    ui.logChat("S", L.log_invert)
 end
 
 function tasks.getTask(state, CONFIG)

@@ -15,6 +15,7 @@ local scanner     = require("scanner")
 local logic       = require("logic")
 local tasks       = require("tasks")
 local thread      = require("thread")
+local L           = require("lang")[CONFIG.language]
 local modem       = component.modem
 
 local state = {
@@ -43,12 +44,12 @@ end
 -- Действия кнопок (чтобы не дублировать код для клавиш и кнопок)
 local function actionPause()
     state.paused = not state.paused 
-    ui.logChat("S", state.paused and "PAUSE ВКЛ" or "PAUSE ВЫКЛ")
+    ui.logChat("S", state.paused and L.log_pause_on or L.log_pause_off)
 end
 
 local function actionShutdown()
     state.shutdown_mode = true 
-    ui.logChat("S", "SHUTDOWN: Начинаю очистку...")
+    ui.logChat("S", L.log_shutdown)
 end
 
 -- Запускаем фоновый поток проверки жизни робота
@@ -70,15 +71,15 @@ thread.create(function()
 end)
 
 local function mainLoop()
-    ui.init(CONFIG)
+    ui.init()
     modem.open(CONFIG.port)
     -- При запуске будим робота даже если тот не дрыхнет
     state.last_alive = computer.uptime() -- Сбрасываем таймер, чтобы поток не дублировал
     wakeRobot()
-    ui.logChat("S", "Поиск робота...")
+    ui.logChat("S", L.log_search)
     local ok, p_count, c_count, t_count = map_manager.load(state)
-    if not ok then ui.logChat("S", "Ошибка: карта не найдена!"); return end
-    ui.logChat("S", "карта" .. p_count .. " р, " .. c_count .. " к," .. t_count .. " т")
+    if not ok then ui.logChat("S", L.log_err_map); return end
+    ui.logChat("S", string.format(L.log_loaded, p_count, c_count, t_count))
     
     -- Создаем кнопки, привязанные к правому краю
     local w, h = component.gpu.getResolution()
@@ -86,7 +87,7 @@ local function mainLoop()
     ui.createButton(w - 2, 2, 2, 1, "❌", actionShutdown, 0x550000)
 
     if component.isAvailable("screen") then pcall(function() component.screen.setPrecise(true) end) end
-    ui.logChat("S", "Готов. Жду готовность робота.")
+    ui.logChat("S", L.log_ready) --Готов. Жду готовность робота
 
     local last_scan, last_full_scan, last_phase_check = 0, 0, 0
 
@@ -129,7 +130,7 @@ local function mainLoop()
                     state.busy = false
                     state.current_task = nil
                     state.locked = {}
-                    ui.logChat("S", "EMERG OFF(робот починился)")
+                    ui.logChat("S", L.log_emerg_off)
                 end
                 need_render = true
                 
@@ -138,7 +139,7 @@ local function mainLoop()
                 state.busy = false; state.current_task = nil; state.locked = {} 
                 state.phase = "EMERGENCY"
                 if not state.emergency_notified then
-                    ui.logChat("R<", "АВАРИЯ! Робот требует ремонта.")
+                    ui.logChat("R<", L.log_emerg_on)
                     state.emergency_notified = true
                 end
                 need_render = true
@@ -183,7 +184,7 @@ local function mainLoop()
                     end
                 end
             elseif msg == "ALERT" then
-                ui.logChat("R<", "ERROR: " .. tostring(arg1))
+                ui.logChat("R<", string.format(L.log_alert, tostring(arg1)))
                 need_render = true
             end
         end
@@ -195,7 +196,7 @@ local function mainLoop()
             if state.current_task.taken then
                 -- Ждем ACK. Если робот не шлет ALIVE 40 секунд - отменяем задачу.
                 if alive_delta > 40 then
-                    ui.logChat("S", "Робот пропал. Отменяю задачу.")
+                    ui.logChat("S", L.log_timeout)
                     state.busy = false
                     state.current_task = nil
                     state.locked = {}
@@ -206,14 +207,14 @@ local function mainLoop()
                 if delta > 5 then
                     if alive_delta > 30 then
                         -- Робот не отвечает, отменяем. Поток его разбудит.
-                        ui.logChat("S", "Робот пропал. Отменяю задачу.")
+                        ui.logChat("S", L.log_timeout)
                         state.busy = false
                         state.current_task = nil
                         state.locked = {}
                         need_render = true
                     else
                         -- Робот жив, но прослушал. Повторяем задачу.
-                        ui.logChat("S", "Повтор #" .. state.current_task.id)
+                        ui.logChat("S", string.format(L.log_repeat, state.current_task.id))
                         if state.phase == "EMERGENCY" then
                             modem.broadcast(CONFIG.port, "CMD", state.current_task.id, "EMERGENCY_CLEAR", state.current_task.key)
                         else
@@ -249,7 +250,7 @@ local function mainLoop()
             local action, key, display_status = tasks.getTask(state, CONFIG)
             -- Если мы завершаемся и задач нет - выключаемся
             if state.shutdown_mode and not action then
-                ui.logChat("S", "Поле чистое. Завершаю работу...")
+                ui.logChat("S", L.log_field_clean)
                 ui.render(state, CONFIG, true) -- принудительно рисуем
                 os.sleep(2)
                 -- чистимся перед выходом
@@ -273,11 +274,22 @@ local function mainLoop()
 
                 local screen_status = (action == "MULTI_PLANT") and "MULTI" or display_status
                 setStatus(key, screen_status)
-                -- Если display_status содержит причину (WEAK, EXCESS и т.д.), пишем её вместо action
+                
+                -- Перевод для чата
                 local log_action = display_status or action
-                -- Для MULTI_PLANT display_status - это координаты, поэтому пишем action
-                if action == "MULTI_PLANT" then log_action = action end
-                ui.logChat("S>", string.format("%s #%d -> %s", log_action, state.task_counter, key))
+                if display_status == "WEAK" then log_action = L.st_weak
+                elseif display_status == "EXCESS" then log_action = L.st_excess
+                elseif display_status == "NEW" then log_action = L.st_new
+                elseif display_status == "CLEAR" then log_action = L.st_clear
+                elseif display_status == "WEED" then log_action = L.st_weed
+                elseif display_status == "G24" then log_action = L.st_g24
+                elseif display_status == "PLACE_DBL" then log_action = L.st_place_dbl
+                elseif display_status == "TOP_SEEDS" then log_action = L.st_top_seeds
+                elseif display_status == "NEW_SEEDS" then log_action = L.st_new_seeds
+                end
+                if action == "MULTI_PLANT" then log_action = L.st_multi end
+                
+                ui.logChat("S>", string.format(L.log_task, log_action, state.task_counter, key))
                 
                 if state.phase == "EMERGENCY" then
                     modem.broadcast(CONFIG.port, "CMD", state.task_counter, "EMERGENCY_CLEAR", key)

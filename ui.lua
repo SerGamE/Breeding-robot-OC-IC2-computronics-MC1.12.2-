@@ -1,5 +1,7 @@
 local component = require("component")
 local gpu = component.gpu
+local CONFIG = require("config")
+local L = require("lang")[CONFIG.language]
 
 local ui = {}
 local buttons = {}
@@ -12,7 +14,7 @@ function ui.reset()
     chat_history = {}
 end
 
-function ui.init(CONFIG)
+function ui.init()
     -- Считаем нужное разрешение
     local w = (CONFIG.field_z * 10) + 5 + 30 -- Поле + отступы + чат
     local h = (CONFIG.field_x * 5) + 4       -- Поле + шапка + отступ
@@ -74,12 +76,12 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
     gpu.setBackground(bg_color)
     for row = 0, h - 1 do gpu.set(px, py + row, string.rep(" ", w)) end
     
-    if st == 3 then gpu.setForeground(0x777777); gpu.set(px + 2, py + 2, "[TECH]"); return end
+    if st == 3 then gpu.setForeground(0x777777); gpu.set(px + 2, py + 2, L.tech); return end
     
     local data = state.scan_data[key]
     local stat = state.status_line[key] or ""
     if not data then
-        gpu.setForeground(0x555555); gpu.set(px + 2, py + 2, "empty")
+        gpu.setForeground(0x555555); gpu.set(px + 2, py + 2, L.empty)
         gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
         if stat ~= "" then 
             gpu.setForeground(0xFFFF55); gpu.set(px + 1, py + 4, stat:sub(1, w - 2)) 
@@ -87,7 +89,7 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
         return
     end
     if data.id == "" then
-        gpu.setForeground(0x55FFFF); gpu.set(px + 3, py + 2, "DBL")
+        gpu.setForeground(0x55FFFF); gpu.set(px + 2, py + 2, L.dbl)
         gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
         if stat ~= "" then 
             gpu.setForeground(0x55FFFF); gpu.set(px + 1, py + 4, stat:sub(1, w - 2)) 
@@ -101,8 +103,9 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
     
     gpu.set(px + 1, py + 4, string.rep(" ", w - 2))
     
-    if stat ~= "" then
-        if stat:match("WEAK") or stat:match("EXCESS") or stat:match("NEW") or stat:match("REPLACE") or stat:match("CLEAR") or stat:match("WEED") or stat:match("G24") then 
+        if stat ~= "" then
+        -- Определяем цвет по оригинальному статусу
+        if stat:match("WEAK") or stat:match("EXCESS") or stat:match("NEW") or stat:match("CLEAR") or stat:match("WEED") or stat:match("G24") then 
             gpu.setForeground(0xFF5555)
         elseif stat:match("DBL") then 
             gpu.setForeground(0x55FFFF)
@@ -111,7 +114,22 @@ local function drawCell(state, key, px, py, cell_w, cell_h)
         else 
             gpu.setForeground(0xFFFFFF) 
         end
-        gpu.set(px + 1, py + 4, stat:sub(1, w - 2))
+
+        -- Переводим текст статуса
+        local translated = stat
+        if stat == "WEAK" then translated = L.st_weak
+        elseif stat == "EXCESS" then translated = L.st_excess
+        elseif stat == "NEW" then translated = L.st_new
+        elseif stat == "CLEAR" then translated = L.st_clear
+        elseif stat == "WEED" then translated = L.st_weed
+        elseif stat == "G24" then translated = L.st_g24
+        elseif stat == "PLACE_DBL" then translated = L.st_place_dbl
+        elseif stat == "TOP_SEEDS" then translated = L.st_top_seeds
+        elseif stat == "NEW_SEEDS" then translated = L.st_new_seeds
+        elseif stat == "MULTI" then translated = L.st_multi
+        end
+
+        gpu.set(px + 1, py + 4, translated:sub(1, w - 2))
     end
 end
 
@@ -119,13 +137,21 @@ function ui.render(state, CONFIG, force)
     local w, h = gpu.getResolution()
     local start_y, start_x, cell_w, cell_h = 4, 2, 10, 5
     
-    local display_phase = state.paused and "PAUSE" or state.phase
-    local header_str = string.format("=== Server | %s | %s ===", display_phase, (state.busy and "BUSY" or "IDLE"))
+    local display_phase = state.paused and L.phase_pause or state.phase
+    if state.phase == "INIT" then display_phase = L.phase_init
+    elseif state.phase == "BREEDING" then display_phase = L.phase_breeding
+    elseif state.phase == "SELECTION" then display_phase = L.phase_selection
+    elseif state.phase == "MUTATION" then display_phase = L.phase_mutation
+    elseif state.phase == "EMERGENCY" then display_phase = L.phase_emergency
+    end
+    
+    local display_busy = state.busy and L.status_busy or L.status_idle
+    local header_str = string.format(L.header, display_phase, display_busy)
     if force or old_header ~= header_str then
         gpu.setBackground(0x000000); gpu.setForeground(0xFFFF55)
         gpu.set(1, 1, header_str .. string.rep(" ", w - #header_str))
         gpu.setForeground(0xFFFFFF)
-        local t_str = string.format("Target: %d/%d/%d | MaxPar: %d/%d/%d | MaxCh: %d/%d/%d", 
+        local t_str = string.format(L.stats, 
             CONFIG.target.g, CONFIG.target.ga, CONFIG.target.r, 
             state.max_parent.g, state.max_parent.ga, state.max_parent.r,
             state.max_child.g, state.max_child.ga, state.max_child.r)
@@ -155,7 +181,7 @@ function ui.render(state, CONFIG, force)
     end
     
     local chat_x = start_x + (CONFIG.field_z * cell_w) + 3
-    gpu.setForeground(0xFFFFFF); gpu.set(chat_x, start_y, "--- CHAT ---")
+    gpu.setForeground(0xFFFFFF); gpu.set(chat_x, start_y, L.chat_title)
     local chat_w = w - chat_x - 1
     if chat_w > 30 then chat_w = 35 end -- Ограничиваем ширину чата
     
