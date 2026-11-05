@@ -52,7 +52,7 @@ lang.Ru = {
 }
 
 lang.En = {
-    -- Head
+    -- Header
     header = "=== Server | %s | %s ===",
     phase_init = "INIT",
     phase_breeding = "BREEDING",
@@ -100,6 +100,57 @@ lang.En = {
     log_task = "%s #%d -> %s",
     log_invert = "MAP INVERTED!",
     log_alert = "ERROR: %s",
+}
+
+lang.Ja = {
+    --Header
+    header = "=== サーバー | %s | %s ===",
+    phase_init = "初期化",
+    phase_breeding = "繁殖",
+    phase_selection = "選抜",
+    phase_mutation = "突然変異",
+    phase_emergency = "緊急",
+    phase_pause = "一時停止",
+    status_busy = "実行中",
+    status_idle = "待機中",
+    stats = "目標: %d/%d/%d | 最大親: %d/%d/%d | 最大子: %d/%d/%d",
+    chat_title = "--- チャット ---",
+
+    -- Field statuses
+    dbl = "#",
+    empty = "空",
+    tech = "[技術]",
+
+    -- Task statuses
+    st_weak = "弱い",
+    st_excess = "過剰",
+    st_new = "新種",
+    st_clear = "除去",
+    st_weed = "雑草",
+    st_g24 = "G24",
+    st_place_dbl = "棒",
+    st_multi = "移植",
+    st_new_seeds = "新種の種",
+    st_top_seeds = "最高の種",
+    st_emerg = "緊急",
+
+    -- Logs
+    log_loaded = "ロード完了: %d 親, %d 交配, %d 技術",
+    log_err_map = "エラー: マップが見つかりません！",
+    log_search = "ロボットを探しています...",
+    log_ready = "準備完了。ロボットを待っています。",
+    log_pause_on = "一時停止 オン",
+    log_pause_off = "一時停止 オフ",
+    log_shutdown = "シャットダウン: クリーンアップを開始...",
+    log_field_clean = "フィールドはきれいです。終了します...",
+    log_emerg_on = "緊急事態！ロボットの修理が必要です。",
+    log_emerg_off = "緊急事態解除（ロボット修理完了）",
+    log_timeout = "ロボットが見つかりません。タスクをキャンセルします。",
+    log_repeat = "リピート #%d",
+    log_phase = "フェーズ -> %s",
+    log_task = "%s #%d -> %s",
+    log_invert = "マップが反転されました！",
+    log_alert = "エラー: %s",
 }
 
 return lang

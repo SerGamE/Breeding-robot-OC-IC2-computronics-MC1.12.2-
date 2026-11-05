@@ -184,7 +184,7 @@ function ui.render(state, CONFIG, force)
     local chat_x = start_x + (CONFIG.field_z * cell_w) + 3
     gpu.setForeground(0xFFFFFF); gpu.set(chat_x, start_y, L.chat_title)
     local chat_w = w - chat_x - 1
-    if chat_w > 30 then chat_w = 35 end -- Ограничиваем ширину чата
+    if chat_w > 36 then chat_w = 35 end -- Ограничиваем ширину чата
     
     -- Вычисляем, сколько строк влезет до низа экрана
     local max_chat_lines = h - start_y - 1
