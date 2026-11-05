@@ -18,6 +18,7 @@ local thread      = require("thread")
 local lang_lib    = require("lang")
 local L           = lang_lib[CONFIG.language] --язык
 local modem       = component.modem
+local owners = {computer.users()}
 
 local state = {
     phase = "INIT",    last_invert_time = 0,     
@@ -98,17 +99,32 @@ local function mainLoop()
         local need_render = false
         -- 1. Обработка кликов мышкой
         if ev[1] == "touch" then
-            local _, _, tx, ty = table.unpack(ev)
-            tx = math.ceil(tx) -- округляем вверх
-            ty = math.ceil(ty)
+            local _, _, tx, ty, button, player = table.unpack(ev)
             
-            for _, btn in ipairs(ui.getButtons()) do
-                if tx >= btn.x and tx < btn.x + btn.w and ty >= btn.y and ty < btn.y + btn.h then
-                    btn.action()
-                    need_render = true
+            -- Проверяем, есть ли игрок в списке owners
+            local is_allowed = false
+            for _, owner in ipairs(owners) do
+                if player == owner then
+                    is_allowed = true
                     break
                 end
             end
+
+            if not is_allowed then
+                ui.logChat("R", "Отказано в доступе: " .. tostring(player))
+            else
+                tx = math.ceil(tx)
+                ty = math.ceil(ty)
+                
+                for _, btn in ipairs(ui.getButtons()) do
+                    if tx >= btn.x and tx < btn.x + btn.w and ty >= btn.y and ty < btn.y + btn.h then
+                        btn.action()
+                        need_render = true
+                        break
+                    end
+                end
+            end
+        end
         -- 2. Обработка горячих клавиш
         elseif ev[1] == "key_down" then
             local _, _, char, code = table.unpack(ev)
