@@ -14,7 +14,7 @@ function ui.reset()
     chat_history = {}
 end
 
-function ui.init()
+function ui.init(CONFIG)
     -- Считаем нужное разрешение
     local w = (CONFIG.field_z * 10) + 5 + 30 -- Поле + отступы + чат
     local h = (CONFIG.field_x * 5) + 4       -- Поле + шапка + отступ

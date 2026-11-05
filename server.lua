@@ -71,7 +71,7 @@ thread.create(function()
 end)
 
 local function mainLoop()
-    ui.init()
+    ui.init(CONFIG)
     modem.open(CONFIG.port)
     -- При запуске будим робота даже если тот не дрыхнет
     state.last_alive = computer.uptime() -- Сбрасываем таймер, чтобы поток не дублировал
