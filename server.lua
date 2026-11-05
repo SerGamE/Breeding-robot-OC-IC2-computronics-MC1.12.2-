@@ -196,7 +196,7 @@ local function mainLoop()
             
             if state.current_task.taken then
                 -- Ждем ACK. Если робот не шлет ALIVE 40 секунд - отменяем задачу.
-                if alive_delta > 40 then
+                if alive_delta > 30 then
                     ui.logChat("S", L.log_timeout)
                     state.busy = false
                     state.current_task = nil
