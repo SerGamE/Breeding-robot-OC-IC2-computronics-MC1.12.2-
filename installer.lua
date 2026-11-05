@@ -15,7 +15,8 @@ local ALL_FILES = {
     ["scanner.lua"]     = "/home/scanner.lua",
     ["server.lua"]      = "/home/server.lua",
     ["tasks.lua"]       = "/home/tasks.lua",
-    ["ui.lua"]          = "/home/ui.lua"
+    ["ui.lua"]          = "/home/ui.lua",
+    ["lang.lua"]        = "/home/lang.lua" -- ДОБАВЛЕН ЯЗЫКОВОЙ ФАЙЛ
 }
 
 local is_robot = component.isAvailable("robot")
@@ -25,6 +26,7 @@ if is_robot then
     print("=== ОБНАРУЖЕН РОБОТ ===")
     table.insert(files_to_install, { url = "robot.lua", path = ALL_FILES["robot.lua"] })
     table.insert(files_to_install, { url = "config.lua", path = ALL_FILES["config.lua"] })
+    table.insert(files_to_install, { url = "lang.lua", path = ALL_FILES["lang.lua"] }) -- Роботу тоже нужен язык
 else
     print("=== ОБНАРУЖЕН СЕРВЕР ===")
     for name, path in pairs(ALL_FILES) do
@@ -60,14 +62,18 @@ elseif choice == "2" then
     -- Безопасное удаление из .shrc
     if is_robot and fs.exists("/home/.shrc") then
         local f = fs.open("/home/.shrc", "r")
-        local content = f:read("*a")
-        f:close()
-        local new_content = content:gsub("lua /home/r%.lua\r?\n?", "")
-        if new_content ~= content then
-            local f2 = fs.open("/home/.shrc", "w")
-            f2:write(new_content)
-            f2:close()
-            print("Автозапуск удален.")
+        if f then
+            local content = f:read("*a") or ""
+            f:close()
+            local new_content = content:gsub("lua /home/r%.lua\r?\n?", "")
+            if new_content ~= content then
+                local f2 = fs.open("/home/.shrc", "w")
+                if f2 then
+                    f2:write(new_content)
+                    f2:close()
+                    print("Автозапуск удален.")
+                end
+            end
         end
     end
     return
@@ -100,8 +106,10 @@ if is_robot then
         -- Читаем существующий файл, если он есть
         if fs.exists(shrc_path) then
             local f = fs.open(shrc_path, "r")
-            content = f:read("*a")
-            f:close()
+            if f then
+                content = f:read("*a") or ""
+                f:close()
+            end
         end
         
         -- Если автозапуска еще нет — добавляем
@@ -113,7 +121,7 @@ if is_robot then
                 f:close()
                 print("Автозапуск добавлен в .shrc")
             else
-                print("[ОШИБКА] Не удалось записать .shrc")
+                print("[ОШИБКА] Не удалось открыть .shrc для записи. Проверьте права.")
             end
         else
             print("Автозапуск уже есть.")
